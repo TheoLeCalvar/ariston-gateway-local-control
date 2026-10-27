@@ -4,6 +4,10 @@ All notable changes to the `ariston_local` Home Assistant integration. Versions
 follow the `manifest.json` version. Format based on
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.13.2] - 2026-10-28
+### Changed
+- Energy sensors now use a **flame icon** (`mdi:fire`) to reflect the gas boiler.
+
 ## [0.13.1] - 2026-10-28
 ### Changed
 - Renamed the integration from "Ariston Local (Menu/Par)" to just
@@ -119,6 +123,7 @@ follow the `manifest.json` version. Format based on
   `Menu/Par` protocol): config flow, number / select / switch / sensor entities,
   and a batched polling coordinator.
 
+[0.13.2]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.13.2
 [0.13.1]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.13.1
 [0.13.0]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.13.0
 [0.12.0]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.12.0

@@ -106,6 +106,7 @@ class AristonEnergySensor(CoordinatorEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.ENERGY
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_icon = "mdi:fire"
 
     def __init__(self, stats_coordinator, entry: ConfigEntry, spec: EnergySpec):
         super().__init__(stats_coordinator)
@@ -149,7 +150,7 @@ class AristonEnergyTotalSensor(CoordinatorEntity, RestoreSensor):
     _attr_device_class = SensorDeviceClass.ENERGY
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_icon = "mdi:counter"
+    _attr_icon = "mdi:fire"
 
     def __init__(self, stats_coordinator, entry: ConfigEntry, spec: EnergyTotalSpec):
         super().__init__(stats_coordinator)
