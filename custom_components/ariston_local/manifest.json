@@ -1,7 +1,7 @@
 {
   "domain": "ariston_local",
   "name": "Ariston Local (Menu/Par)",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "documentation": "https://git.kher.nl/tlc/ariston-gateway-local-control",
   "issue_tracker": "https://git.kher.nl/tlc/ariston-gateway-local-control/issues",
   "codeowners": ["@tlc"],

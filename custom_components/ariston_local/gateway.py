@@ -42,7 +42,7 @@ class AristonGateway:
             self._client = mqtt.Client(client_id=self.requester)
         self._client.on_connect = self._on_connect
         self._client.on_message = self._on_message
-        self._configure_tls()
+        self._tls_configured = False
 
     # ----------------------------------------------------------------- topics
     def _topic(self, client, verb, resource=""):
@@ -55,7 +55,11 @@ class AristonGateway:
 
     # ----------------------------------------------------------------- TLS
     def _configure_tls(self):
-        ctx = ssl.create_default_context()
+        # Build the context WITHOUT create_default_context(): that loads the
+        # system trust store from disk (set_default_verify_paths), which blocks
+        # the event loop if __init__ runs there. We verify nothing anyway, so a
+        # bare client context is enough. Called from connect() (an executor).
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
         if self.cafile:
@@ -72,6 +76,9 @@ class AristonGateway:
 
     # ----------------------------------------------------------------- lifecycle
     def connect(self, timeout=10):
+        if not self._tls_configured:
+            self._configure_tls()  # does disk I/O; must run off the event loop
+            self._tls_configured = True
         self._client.connect(self.host, self.port, keepalive=30)
         self._client.loop_start()
         if not self._connected.wait(timeout):
