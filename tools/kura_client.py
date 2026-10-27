@@ -62,7 +62,7 @@ def _tls_list(cafile):
 
 
 def send_request(verb, resource, metrics, *, host, port, account, client, app,
-                 cafile=None, timeout=10, settle=0.3, dry_run=False):
+                 cafile=None, timeout=10, settle=0.3, dry_run=False, timestamp=None):
     """Send one Kura request and return the decoded reply as a dict.
 
     Reusable by other tools (e.g. the register sweeper). Returns one of:
@@ -83,7 +83,8 @@ def send_request(verb, resource, metrics, *, host, port, account, client, app,
     payload = dict(metrics)
     payload.setdefault("request.id", req_id)
     payload.setdefault("requester.client.id", requester)
-    data = kura_encode.encode_payload(payload)
+    # Pass timestamp=False to omit it, matching the cloud's own requests.
+    data = kura_encode.encode_payload(payload, timestamp=timestamp)
 
     if dry_run:
         return {"dry_run": True, "resource": f"{verb}/{resource}",

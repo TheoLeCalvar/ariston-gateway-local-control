@@ -1,11 +1,11 @@
 {
-  "_comment": "Ariston installer-menu parameters, keyed by menu number (as shown in the web installer menu, e.g. 6.16.0). The gateway reads/writes these via the Menu/Par resource using codes U_<menu> (user value), T_<menu> (technical/sensor read), and a C_ variant that returns the same value. 'scale' x10 means the raw integer is tenths (185 = 18.5 C) -- confirmed on-device by matching the web installer. 32767 (0x7FFF) is the not-available sentinel. 'fr' is the French menu label from the installer.",
+  "_comment": "Ariston installer-menu parameters, keyed by menu number (as shown in the web installer menu, e.g. 6.16.0). The gateway reads/writes these via the Menu/Par resource using codes U_<menu> (user value), T_<menu> (technical/sensor read), and a C_ variant that returns the same value. 'scale' x10 means the raw integer is tenths (185 = 18.5 C) -- confirmed on-device by matching the web installer. 32767 (0x7FFF) is the not-available sentinel. 'fr' is the French menu label from the installer. 'values' (when present) lists the raw values observed to be settable for an enum parameter; enum labels are only filled where confirmed against the app.",
   "parameters": {
     "0.0": {"label": "Zone 1 mode",            "fr": "Zone 1 (Programmé/Manuel)",      "scale": "enum", "enum": {"3": "Chauffage programmé"}, "confidence": "observed-on-device"},
     "0.1": {"label": "Zone 2 mode",            "fr": "Zone 2 (Programmé/Manuel)",      "scale": "enum", "enum": {"3": "Chauffage programmé"}, "confidence": "observed-on-device"},
     "0.2": {"label": "Zone 3 mode",            "fr": "Zone 3 (Programmé/Manuel)",      "scale": "enum", "enum": {"3": "Chauffage programmé"}, "confidence": "observed-on-device"},
     "0.6": {"label": "DHW position",           "fr": "Position sanitaire",             "scale": "enum", "enum": {"0": "Désactivée"}, "confidence": "observed-on-device"},
-    "3":   {"label": "Summer/Winter/OFF",      "fr": "Eté / Hiver / OFF",              "scale": "enum", "enum": {"1": "Hiver"}, "confidence": "observed-on-device"},
+    "3":   {"label": "Summer/Winter/OFF",      "fr": "Eté / Hiver / OFF",              "scale": "enum", "enum": {"1": "Hiver"}, "values": [0, 1, 2, 5], "confidence": "observed-on-device"},
 
     "6.3.0.0": {"label": "Flow setpoint zone 1", "fr": "Température départ zone 1", "unit": "C", "scale": "x10", "confidence": "observed-on-device"},
     "6.3.0.2": {"label": "Flow setpoint zone 2", "fr": "Température départ zone 2", "unit": "C", "scale": "x10", "confidence": "observed-on-device"},

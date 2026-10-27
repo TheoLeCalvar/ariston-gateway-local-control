@@ -85,6 +85,17 @@ def apply_scale(value, scale):
     return value
 
 
+def to_raw(value, scale):
+    """Inverse of apply_scale: human value -> raw integer the device expects."""
+    if scale == "x10":
+        return int(round(float(value) * 10))
+    if scale == "x100":
+        return int(round(float(value) / 100))
+    if scale == "div60":
+        return int(round(float(value) * 60))
+    return int(value)
+
+
 def _decode_value(known, value):
     """Return (scaled_value, enum_label) for a raw metric value."""
     if value == 32767:  # 0x7FFF: not-available sentinel

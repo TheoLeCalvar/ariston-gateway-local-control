@@ -72,14 +72,47 @@ tools/kura_client.py get Menu/Par -m P1:STRING=U_6.9.0 --cafile broker/server.cr
     U_3            = Hiver      (Summer/Winter/OFF)
 ```
 
-## Writing parameters — not yet done
+## Writing parameters (PUT Menu/Par)
 
-Setpoint changes almost certainly go through a **PUT** to `Menu/Par` with the
-code and new value, but no PUT has been captured yet, so the exact write shape is
-unconfirmed. Capture one setpoint change in the app (MITM + `analyze_capture.py
---follow`) before attempting a write. `kura_client.py put` already refuses
-`DEPLOY-V2` and confirms before sending; treat the first real PUT with caution and
-know how to revert it from the boiler panel.
+A captured write settles the format. The **installer web portal** (not the main
+consumer page) issues writes; a change is a PUT to the same resource:
+
+```
+PUT  $EDC/ari/<MAC>/ar1/PUT/Menu/Par
+metric   <code> = <value>     (INT32 — the code is the metric NAME, value direct)
+         request.id, requester.client.id
+```
+
+Note the asymmetry with reads: a GET wraps codes as `P1 = "U_3"`, but a **PUT
+names the metric after the code** — `U_3 = 1`. One PUT per parameter, no
+timestamp (matching the cloud). Example captured: `U_3 = 1` sets Eté/Hiver/OFF to
+Hiver; the raw packet is exactly `c2b802090a03555f3310033001` plus the request
+metrics, which `kura_encode.encode_payload({"U_3": ("INT32", 1)}, timestamp=False)`
+reproduces byte-for-byte.
+
+Mode `3` (Eté/Hiver/OFF) was observed to accept values **0, 1, 2, 5** (only
+`1 = Hiver` is label-confirmed; set each and read the app to label the rest).
+
+### Writing with the tool
+
+`tools/write_menu.py` takes human values, applies the scaling, and PUTs one
+parameter at a time. **It changes real settings on a real boiler**, so it is
+dry-run until `--send` and confirms each write.
+
+```bash
+# preview (sends nothing): shows code, raw value, scaling
+tools/write_menu.py 6.3.1.0.0=19.5 3=1
+
+# write for real (gateway on the local broker; prompts to confirm), then read back
+tools/write_menu.py 6.3.1.0.0=19.5 --cafile broker/server.crt --send --verify
+```
+
+It writes only `U_` codes, refuses `DEPLOY-V2`, and warns when a value is outside
+a parameter's known settable set. The raw path is also available directly:
+`kura_client.py put Menu/Par -m U_3:INT32=1 --cafile broker/server.crt`.
+
+Treat the first real write with care and know how to revert it from the boiler
+panel.
 
 ## Other resources seen
 

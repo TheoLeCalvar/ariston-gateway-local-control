@@ -16,8 +16,9 @@ cloud round-trip.
 - ✅ Decoded the hex metric-name structure as **BridgeNet-over-eBUS register IDs** (little-endian register + `0xFE` broadcast + zone), confirmed against community registers (`6810` flow, `6910` return, `c04b` status). See [docs/04](docs/04-ebus-parameters.md).
 - ⬜ Build the command dictionary (`GET`/`PUT`/`EXEC` resources) by capturing the official app via the MITM proxy (use `tools/analyze_capture.py` to roll up the log).
 - ✅ Found the real **config channel**: the `Menu/Par` resource reads/writes settings by installer-menu code (`U_6.3.1.0.0` = menu 6.3.1.0.0). Mapped the codes to the web installer menu and confirmed ×10 temperature scaling + enums. See [docs/05](docs/05-menu-parameters.md).
-- ✅ Tooling: `read_menu.py` reads menu params in Mode A; `menu_params.py`/`.json` decode and annotate them.
-- ⬜ Capture a `PUT` (one setpoint change) to confirm the **write** format, then drive the device.
+- ✅ Confirmed the **write** format from a captured PUT: `PUT Menu/Par` with the code as the metric name (`U_3 = 1`), no timestamp — reproduced byte-for-byte. `tools/write_menu.py` writes scaling-aware, dry-run + confirm by default.
+- ✅ Tooling: `read_menu.py`/`write_menu.py` read and write menu params in Mode A; `menu_params.py`/`.json` decode and annotate them.
+- ⬜ Drive the device end-to-end in Mode A (fully local) and build the Home Assistant integration on top.
 - ⬜ Confirm per-register scaling/enums on this model and expand `tools/ebus_registers.json` from captures.
 - ⬜ Drive the device from a local client / HA integration.
 
@@ -49,6 +50,7 @@ tools/
   kura_client.py             Mode A: send GET/PUT/EXEC, read the matching REPLY
   sweep_registers.py         Mode A: actively GET named resources (GET-only)
   read_menu.py               Mode A: read installer-menu params via Menu/Par
+  write_menu.py              Mode A: write params (PUT Menu/Par), scaling-aware
   menu_params.py             decode U_/T_ menu codes + enrich (map in .json)
   menu_params.json           menu number → label/unit/scale/enum (from capture)
   analyze_capture.py         roll an mqtt_mitm log up into a command dictionary

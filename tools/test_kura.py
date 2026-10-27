@@ -216,6 +216,30 @@ class MenuParams(unittest.TestCase):
         self.assertEqual([len(b) for b in batches], [16, 4])
         self.assertEqual(batches[0]["P1"], ("STRING", "U_0"))
 
+    def test_to_raw_roundtrip(self):
+        self.assertEqual(menu_params.to_raw(19.5, "x10"), 195)
+        self.assertEqual(menu_params.to_raw(480, "div60"), 28800)
+        self.assertEqual(menu_params.to_raw(3, "enum"), 3)
+        self.assertEqual(menu_params.apply_scale(menu_params.to_raw(18.5, "x10"), "x10"), 18.5)
+
+
+class WriteMenu(unittest.TestCase):
+    def test_put_matches_captured_packet(self):
+        # the real captured PUT of U_3 = 1
+        data = kura_encode.encode_payload({"U_3": ("INT32", 1)}, timestamp=False)
+        self.assertEqual(data.hex(), "c2b802090a03555f3310033001")
+
+    def test_write_scaling_and_validation(self):
+        import write_menu
+        code, raw, human, known, warning = write_menu.parse_assignment(
+            "6.3.1.0.0=19.5", "U_", False)
+        self.assertEqual((code, raw), ("U_6.3.1.0.0", 195))
+        self.assertIsNone(warning)
+        # value outside the known settable set for mode 3 warns
+        _, raw3, _, _, warn3 = write_menu.parse_assignment("3=9", "U_", False)
+        self.assertEqual(raw3, 9)
+        self.assertIsNotNone(warn3)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
