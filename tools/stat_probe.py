@@ -29,6 +29,7 @@ note the kWh it shows, and match them to the Typ/idx below. idx 1 = hourly
 import argparse
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import kura_client
@@ -62,8 +63,9 @@ def main():
     ap.add_argument("--client", default=kura_client.DEFAULTS["client"], help="device MAC / client id")
     ap.add_argument("--app", default=kura_client.DEFAULTS["app"])
     ap.add_argument("--cafile", default=None, help="broker cert (adds --insecure)")
-    ap.add_argument("--timeout", type=int, default=10,
-                    help="per-Typ reply wait (absent codes wait this out)")
+    ap.add_argument("--timeout", type=int, default=20,
+                    help="per-Typ reply wait; this gateway's Stat/cWh reply is "
+                         "slow (~10-15s), and absent codes wait the whole timeout")
     args = ap.parse_args()
 
     base = _parse_typs(args.base)
@@ -91,6 +93,7 @@ def main():
         if probe0:
             break
         print(f"  base {args.base}: no reply (try {attempt + 1}/4)", file=sys.stderr)
+        time.sleep(2)
     if not probe0:
         print(f"Base {base} never replied -- is HA mid-read? Stats are slow; "
               f"try a longer --timeout, or confirm with: kura_client.py get "
