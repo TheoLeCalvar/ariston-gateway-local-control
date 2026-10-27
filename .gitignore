@@ -1,0 +1,12 @@
+# Never commit private keys or captured traffic
+*.key
+*.pem
+server.crt
+*.pcap
+*.pcapng
+*.bin
+*.jsonl
+*.log
+captures/
+__pycache__/
+*.pyc
