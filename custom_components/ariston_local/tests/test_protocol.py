@@ -79,6 +79,17 @@ class Entities(unittest.TestCase):
         temps = [s for s in entities.SENSORS if s.prefix == "T_"]
         self.assertTrue(all(s.device_class == "temperature" for s in temps))
 
+    def test_climate_zone_codes_are_read(self):
+        z1 = next(c for c in entities.CLIMATES if c.zone == 1)
+        self.assertEqual((z1.temp_menu, z1.setpoint_menu, z1.mode_menu),
+                         ("4.3.0", "4.3.1", "0.0"))
+        codes = entities.all_codes()
+        for code in (f"T_{z1.temp_menu}", f"T_{z1.setpoint_menu}",
+                     f"U_{z1.mode_menu}"):
+            self.assertIn(code, codes)
+        # mode is an enum with the Manuel(2)/Programmé(3) values the climate maps
+        self.assertEqual(menu.decode(z1.mode_menu, 3), (3, "Chauffage programmé"))
+
 
 class Stat(unittest.TestCase):
     def test_decode_body(self):

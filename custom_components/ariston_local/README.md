@@ -32,6 +32,12 @@ Polling interval is configurable under the integration's **Options** (default 60
 Driven by the parameter map in [`menu_params.json`](menu_params.json) and the
 catalog in [`entities.py`](entities.py):
 
+- **Climate** — a per-zone thermostat (zone 1 confirmed). Current temperature and
+  active setpoint are the live `T_` reads; `AUTO`/`HEAT` map to the zone mode
+  (Chauffage programmé / Manuel). Setting a target issues a timed hold
+  (dérogation, default 3 h, auto-reverting) — for another duration use the
+  `set_override` service. Zones 2/3 are added once their `T_` codes are captured.
+
 - **Numbers** — zone comfort/eco setpoints, zone flow setpoints, DHW comfort
   setpoint (°C, written with the correct ×10 scaling).
 - **Select** — Season mode (Eté/Hiver/OFF). Only *Winter* is label-confirmed; the
@@ -75,8 +81,7 @@ python3 -I custom_components/ariston_local/tests/test_protocol.py
 
 ## Status
 
-Version 0.4.0 — adds live temperature sensors (zone room temp, active setpoint,
-boiler flow) and confirms the season/zone/DHW/comfort enum labels from a capture,
-on top of 0.3.0's override services. The zone room-temp + active-setpoint pair is
-the groundwork for a per-zone `climate` entity (next step); setpoints remain
-exposed as numbers for now.
+Version 0.5.0 — adds a per-zone `climate` entity (zone 1) on top of 0.4.0's live
+temperature sensors and confirmed enum labels. Current temp + active setpoint come
+from the `T_` reads; target changes go through the native override. Zones 2/3
+await a capture of their `T_` codes.

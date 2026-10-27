@@ -34,6 +34,18 @@ class SwitchSpec:
 
 
 @dataclass(frozen=True)
+class ClimateSpec:
+    zone: int
+    name: str
+    temp_menu: str       # T_ live room temperature
+    setpoint_menu: str   # T_ live active setpoint (reflects schedule or override)
+    mode_menu: str       # U_ zone mode (2 = Manuel, 3 = Chauffage programmé)
+    min_temp: float = 10.0
+    max_temp: float = 30.0
+    step: float = 0.5
+
+
+@dataclass(frozen=True)
 class SensorSpec:
     menu: str
     name: str
@@ -85,11 +97,21 @@ SENSORS = [
 ]
 
 
+# Per-zone thermostats. Only zone 1 is capture-confirmed: T_4.3.0 drifts ~20°C
+# (room temp), T_4.3.1 tracked the 18° override (active setpoint), U_0.0 is the
+# zone mode. Zones 2/3 await a capture of their T_ codes before being added here.
+CLIMATES = [
+    ClimateSpec(1, "Zone 1", "4.3.0", "4.3.1", "0.0"),
+]
+
+
 def all_menus():
     menus = set()
     for group in (NUMBERS, SELECTS, SWITCHES, SENSORS):
         for spec in group:
             menus.add(spec.menu)
+    for c in CLIMATES:
+        menus.update((c.temp_menu, c.setpoint_menu, c.mode_menu))
     return sorted(menus)
 
 
@@ -99,4 +121,6 @@ def all_codes():
     codes = {f"U_{spec.menu}" for group in (NUMBERS, SELECTS, SWITCHES)
              for spec in group}
     codes |= {f"{spec.prefix}{spec.menu}" for spec in SENSORS}
+    for c in CLIMATES:
+        codes |= {f"T_{c.temp_menu}", f"T_{c.setpoint_menu}", f"U_{c.mode_menu}"}
     return sorted(codes)

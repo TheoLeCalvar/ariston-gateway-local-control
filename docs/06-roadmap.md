@@ -51,7 +51,16 @@ at the end epoch (standard Unix time, so `end = now + duration`).
   `ariston_local.clear_override` (see `services.yaml`).
 
 Remaining: a `clear` capture to confirm enable=0 is the right disable (we infer
-it); and a `climate` `PRESET_BOOST` once the climate entity exists.
+it).
+
+### Climate entity — DONE (zone 1)
+
+A per-zone `climate` entity now sits on top of the live `T_` reads confirmed in
+docs/05: `current_temperature` = `T_4.3.0`, `target_temperature` = `T_4.3.1`
+(which tracked the 18° override), HVAC mode = the zone mode `U_0.<zone>`
+(`AUTO` = Chauffage programmé, `HEAT` = Manuel). `set_temperature` issues the
+native dérogation (`Func/Der`) for a default 3 h hold that auto-reverts.
+Remaining: capture zones 2/3 `T_` codes to extend `entities.CLIMATES`.
 
 ## 2. Holidays / absence mode
 
