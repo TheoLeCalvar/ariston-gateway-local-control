@@ -1,0 +1,12 @@
+{
+  "domain": "ariston_local",
+  "name": "Ariston Local (Menu/Par)",
+  "version": "0.1.0",
+  "documentation": "https://git.kher.nl/tlc/ariston-gateway-local-control",
+  "issue_tracker": "https://git.kher.nl/tlc/ariston-gateway-local-control/issues",
+  "codeowners": ["@tlc"],
+  "config_flow": true,
+  "iot_class": "local_polling",
+  "integration_type": "device",
+  "requirements": ["paho-mqtt>=1.6.1"]
+}

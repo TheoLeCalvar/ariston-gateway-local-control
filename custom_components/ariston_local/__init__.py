@@ -1,0 +1,61 @@
+"""Ariston local — control the gateway over local MQTT (no cloud).
+
+Built on the reverse-engineered Menu/Par protocol; see the repo docs/05.
+"""
+from __future__ import annotations
+
+import logging
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
+
+from .const import (
+    CONF_CAFILE,
+    CONF_HOST,
+    CONF_MAC,
+    CONF_PORT,
+    CONF_SCAN_INTERVAL,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+)
+from .coordinator import AristonCoordinator
+from .gateway import AristonGateway
+
+_LOGGER = logging.getLogger(__name__)
+
+PLATFORMS = [Platform.NUMBER, Platform.SELECT, Platform.SWITCH, Platform.SENSOR]
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    data = entry.data
+    gateway = AristonGateway(
+        data[CONF_HOST], data[CONF_PORT], data[CONF_MAC],
+        cafile=data.get(CONF_CAFILE))
+
+    try:
+        await hass.async_add_executor_job(gateway.connect)
+    except Exception as err:  # noqa: BLE001
+        raise ConfigEntryNotReady(f"cannot connect to broker: {err}") from err
+
+    scan = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+    coordinator = AristonCoordinator(hass, entry, gateway, scan)
+    await coordinator.async_config_entry_first_refresh()
+
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    entry.async_on_unload(entry.add_update_listener(_async_reload))
+    return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unloaded:
+        coordinator: AristonCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
+        await hass.async_add_executor_job(coordinator.gateway.disconnect)
+    return unloaded
+
+
+async def _async_reload(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    await hass.config_entries.async_reload(entry.entry_id)

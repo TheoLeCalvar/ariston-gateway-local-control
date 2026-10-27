@@ -1,0 +1,31 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Ariston Local",
+        "description": "Connect to the local MQTT broker the gateway talks to (Mode A).",
+        "data": {
+          "host": "Broker host",
+          "port": "Broker port",
+          "mac": "Gateway MAC / client id",
+          "cafile": "Broker CA/cert file (optional)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not connect to the broker."
+    },
+    "abort": {
+      "already_configured": "This gateway is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "scan_interval": "Polling interval (seconds)"
+        }
+      }
+    }
+  }
+}

@@ -19,7 +19,8 @@ cloud round-trip.
 - ✅ Confirmed the **write** format from a captured PUT: `PUT Menu/Par` with the code as the metric name (`U_3 = 1`), no timestamp — reproduced byte-for-byte. `tools/write_menu.py` writes scaling-aware, dry-run + confirm by default.
 - ✅ Tooling: `read_menu.py`/`write_menu.py` read and write menu params in Mode A; `menu_params.py`/`.json` decode and annotate them.
 - ✅ **Full local control confirmed on hardware** (Mode A): read a parameter, wrote a setpoint, and the thermostat's own display updated — no cloud involved.
-- ⬜ Build the Home Assistant integration on top (local MQTT, no cloud round-trip).
+- ✅ **Home Assistant integration** (`custom_components/ariston_local/`): local-MQTT custom component exposing setpoints (numbers), season mode (select), toggles (switches) and sensors via the Menu/Par protocol. First version; see its [README](custom_components/ariston_local/README.md).
+- ⬜ Add a `climate` entity per zone (needs a confirmed current-temperature source) and expand the parameter map.
 - ⬜ Confirm per-register scaling/enums on this model and expand `tools/ebus_registers.json` from captures.
 - ⬜ Drive the device from a local client / HA integration.
 
@@ -45,6 +46,8 @@ broker/
   make-cert.sh               generate the self-signed server cert
   mosquitto.conf             Mode A: fully local broker
   mosquitto-bridge.conf      Mode C: local broker bridged to the real cloud
+custom_components/
+  ariston_local/             Home Assistant integration (local MQTT, Menu/Par)
 tools/
   kura_decode.py             stdlib Eurotech Kura/Kapua payload decoder
   kura_encode.py             stdlib Kura payload encoder (inverse of the decoder)
