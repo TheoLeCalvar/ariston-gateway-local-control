@@ -42,6 +42,7 @@ docs/
   03-local-broker-and-bridge.md  the three interception modes + safety
   04-ebus-parameters.md      decoding the hex metric names into eBUS registers
   05-menu-parameters.md      the Menu/Par config channel (U_/T_ codes ↔ app menu)
+  06-roadmap.md              plan for override / holidays / energy features
 broker/
   make-cert.sh               generate the self-signed server cert
   mosquitto.conf             Mode A: fully local broker
