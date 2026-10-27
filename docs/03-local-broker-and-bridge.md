@@ -38,6 +38,22 @@ Send a command by publishing a Kura payload to `$EDC/ari/<MAC>/ar1/PUT/<resource
 and reading the matching `$EDC/ari/<MAC>/ar1/REPLY/...`. You need the resource
 paths and payload shapes first — capture them in Mode B.
 
+`tools/kura_client.py` does the publish/subscribe dance for you (it shells out to
+`mosquitto_pub`/`mosquitto_sub`, so no extra Python deps). It subscribes to the
+Kapua `REPLY/<request.id>` topic, publishes the request with the `request.id` and
+`requester.client.id` metrics Kapua expects, and prints the decoded reply:
+
+```bash
+# read a resource (safe)
+tools/kura_client.py get 310/0/0 --cafile broker/server.crt
+
+# preview a write without sending anything
+tools/kura_client.py put 310/0/0 -m value:DOUBLE=21.5 --dry-run
+
+# actually write (prompts first; --yes to skip; refuses the DEPLOY-V2 channel)
+tools/kura_client.py put 310/0/0 -m value:DOUBLE=21.5 --cafile broker/server.crt
+```
+
 Use this once you already know the command vocabulary and want a cloud-free setup.
 
 ---
@@ -63,6 +79,18 @@ sudo python3 -I tools/mqtt_mitm.py \
 Now press buttons in the official Ariston app and watch the `GET`/`PUT`/`EXEC`
 packets appear with decoded payloads. This is how you build the command
 dictionary that Mode A (and the HA integration) needs.
+
+Roll a capture up into that dictionary with the analyzer:
+
+```bash
+tools/analyze_capture.py mitm.jsonl            # human-readable summary
+tools/analyze_capture.py mitm.jsonl --json     # machine-readable
+tools/analyze_capture.py mitm.jsonl --metrics  # just the metric catalog
+```
+
+It groups PUBLISHes by verb + resource, lists the metrics and observed values per
+resource, and prints a catalog of every metric name seen (with its types and
+example values) — the raw material for mapping the hex eBUS parameter IDs.
 
 This proxy is a passive observer on the wire: it relays faithfully and only logs.
 It does not modify, inject, or drop packets.

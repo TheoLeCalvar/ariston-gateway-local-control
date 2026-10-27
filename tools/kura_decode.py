@@ -122,7 +122,7 @@ def _interpret_value(vtype, raw):
         r = getraw(5, 6)
         if r:
             if r[0] == 0:
-                return _zigzag_or_plain(r[1])
+                return _signed_varint(r[1])
             if r[0] == 1:
                 return struct.unpack("<q", r[1])[0]
             if r[0] == 5:
@@ -155,8 +155,12 @@ def _interpret_value(vtype, raw):
     return None
 
 
-def _zigzag_or_plain(v):
-    # Plain varint; Kura uses unsigned/int here (not zigzag) in practice.
+def _signed_varint(v):
+    # Kura int32/int64 are plain (non-zigzag) varints. Protobuf encodes a
+    # negative value (int32 and int64 alike) as its two's-complement in a
+    # full-width 64-bit varint, so reinterpret the high bit as a sign.
+    if v >= (1 << 63):
+        v -= (1 << 64)
     return v
 
 

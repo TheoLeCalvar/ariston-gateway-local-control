@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+"""Encode Eurotech Kura/Kapua MQTT payloads (the inverse of kura_decode).
+
+Dependency-free (stdlib only). Integers are written as plain varints, which is
+what the Ariston gateway itself sends (and what the Kura schema's int32/int64
+fields mean on the wire), so encoded payloads look like the device's own.
+
+Library use:
+    from kura_encode import encode_payload
+    data = encode_payload({"request.id": "abc", "T": 21.5, "On": True})
+    # force a type: {"X": ("INT64", 5)}
+
+CLI use (writes raw bytes to stdout, or hex with --hex):
+    kura_encode.py --metric request.id=abc --metric T:DOUBLE=21.5 > p.bin
+    kura_encode.py --json '{"request.id": "abc"}' --hex
+"""
+import sys
+import json
+import time
+import struct
+import argparse
+
+TYPES = {"DOUBLE": 0, "FLOAT": 1, "INT64": 2, "INT32": 3, "BOOL": 4, "STRING": 5, "BYTES": 6}
+
+
+def _varint(v):
+    if v < 0:
+        v += 1 << 64  # protobuf int32/int64: two's complement, 10 bytes
+    out = bytearray()
+    while True:
+        b = v & 0x7F
+        v >>= 7
+        if v:
+            out.append(b | 0x80)
+        else:
+            out.append(b)
+            return bytes(out)
+
+
+def _key(field, wire):
+    return _varint((field << 3) | wire)
+
+
+def _ld(field, data):
+    return _key(field, 2) + _varint(len(data)) + data
+
+
+def _infer_type(value):
+    if isinstance(value, bool):
+        return "BOOL"
+    if isinstance(value, int):
+        return "INT32" if -(1 << 31) <= value < (1 << 31) else "INT64"
+    if isinstance(value, float):
+        return "DOUBLE"
+    if isinstance(value, (bytes, bytearray)):
+        return "BYTES"
+    if isinstance(value, str):
+        return "STRING"
+    raise TypeError(f"cannot infer Kura type for {value!r}")
+
+
+def encode_metric(name, value, vtype=None):
+    vtype = vtype or _infer_type(value)
+    t = TYPES[vtype]
+    out = _ld(1, name.encode("utf-8")) + _key(2, 0) + _varint(t)
+    if vtype == "DOUBLE":
+        out += _key(3, 1) + struct.pack("<d", float(value))
+    elif vtype == "FLOAT":
+        out += _key(4, 5) + struct.pack("<f", float(value))
+    elif vtype == "INT64":
+        out += _key(5, 0) + _varint(int(value))
+    elif vtype == "INT32":
+        out += _key(6, 0) + _varint(int(value))
+    elif vtype == "BOOL":
+        out += _key(7, 0) + _varint(1 if value else 0)
+    elif vtype == "STRING":
+        out += _ld(8, str(value).encode("utf-8"))
+    elif vtype == "BYTES":
+        out += _ld(9, bytes(value))
+    return out
+
+
+def encode_payload(metrics=None, timestamp=None, body=None):
+    """Return KuraPayload bytes.
+
+    metrics: {name: value} or {name: (TYPE, value)}; insertion order is kept.
+    timestamp: ms since epoch; defaults to now. Pass False to omit it.
+    """
+    out = b""
+    if timestamp is None:
+        timestamp = int(time.time() * 1000)
+    if timestamp is not False:
+        out += _key(1, 0) + _varint(int(timestamp))
+    for name, value in (metrics or {}).items():
+        vtype = None
+        if isinstance(value, tuple):
+            vtype, value = value
+        out += _ld(5000, encode_metric(name, value, vtype))
+    if body is not None:
+        out += _ld(5001, bytes(body))
+    return out
+
+
+def _parse_metric_arg(arg):
+    """name=value or name:TYPE=value. Without a type, ints/floats/bools are inferred."""
+    name, _, raw = arg.partition("=")
+    vtype = None
+    if ":" in name:
+        name, vtype = name.rsplit(":", 1)
+        vtype = vtype.upper()
+        if vtype not in TYPES:
+            raise SystemExit(f"unknown type {vtype} (one of {', '.join(TYPES)})")
+    if vtype in ("INT32", "INT64"):
+        return name, (vtype, int(raw, 0))
+    if vtype in ("DOUBLE", "FLOAT"):
+        return name, (vtype, float(raw))
+    if vtype == "BOOL":
+        return name, (vtype, raw.lower() in ("1", "true", "yes", "on"))
+    if vtype == "BYTES":
+        return name, (vtype, bytes.fromhex(raw))
+    if vtype == "STRING":
+        return name, (vtype, raw)
+    for conv in (int, float):
+        try:
+            return name, conv(raw)
+        except ValueError:
+            pass
+    if raw.lower() in ("true", "false"):
+        return name, raw.lower() == "true"
+    return name, raw
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Encode a Eurotech Kura/Kapua MQTT payload")
+    ap.add_argument("--metric", "-m", action="append", default=[],
+                    help="name=value or name:TYPE=value (repeatable)")
+    ap.add_argument("--json", help="metrics as a JSON object")
+    ap.add_argument("--body-hex", help="opaque body bytes, hex")
+    ap.add_argument("--timestamp", type=int, help="ms since epoch (default: now)")
+    ap.add_argument("--no-timestamp", action="store_true")
+    ap.add_argument("--hex", action="store_true", help="print hex instead of raw bytes")
+    args = ap.parse_args()
+
+    metrics = json.loads(args.json) if args.json else {}
+    for m in args.metric:
+        k, v = _parse_metric_arg(m)
+        metrics[k] = v
+    ts = False if args.no_timestamp else args.timestamp
+    body = bytes.fromhex(args.body_hex) if args.body_hex else None
+    data = encode_payload(metrics, ts, body)
+    if args.hex:
+        print(data.hex())
+    else:
+        sys.stdout.buffer.write(data)
+
+
+if __name__ == "__main__":
+    main()

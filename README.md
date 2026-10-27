@@ -11,8 +11,9 @@ cloud round-trip.
 - ✅ Identified the cloud endpoint: **`broker-ari.everyware-cloud.com:8883`** (Eurotech Everyware Cloud, MQTT/TLS).
 - ✅ Confirmed the gateway **does not validate the broker TLS cert** → a local broker can take over the connection via a DNS override.
 - ✅ Mapped the MQTT topic namespace and decoded the **Kura/Kapua protobuf** payload format.
-- ✅ Tooling: stdlib payload decoder, live monitor, transparent MITM proxy, bridge config.
-- ⬜ Build the command dictionary (`GET`/`PUT`/`EXEC` resources) by capturing the official app via the MITM proxy.
+- ✅ Tooling: stdlib payload **decoder + encoder**, capture analyzer, request/reply client, live monitor, transparent MITM proxy, bridge config.
+- ✅ Tests: round-trip codec + analyzer unit tests (`tools/test_kura.py`, stdlib only).
+- ⬜ Build the command dictionary (`GET`/`PUT`/`EXEC` resources) by capturing the official app via the MITM proxy (use `tools/analyze_capture.py` to roll up the log).
 - ⬜ Map the hex-coded eBUS parameter IDs to meaningful quantities.
 - ⬜ Drive the device from a local client / HA integration.
 
@@ -38,6 +39,10 @@ broker/
   mosquitto-bridge.conf      Mode C: local broker bridged to the real cloud
 tools/
   kura_decode.py             stdlib Eurotech Kura/Kapua payload decoder
+  kura_encode.py             stdlib Kura payload encoder (inverse of the decoder)
+  kura_client.py             Mode A: send GET/PUT/EXEC, read the matching REPLY
+  analyze_capture.py         roll an mqtt_mitm log up into a command dictionary
+  test_kura.py               stdlib unit tests for the codec + analyzer
   live_monitor.sh            subscribe to all topics, print decoded JSON
   mqtt_mitm.py               Mode B: transparent TLS proxy, logs every packet
   resolve_real.sh            resolve the real cloud IP past a DNS override

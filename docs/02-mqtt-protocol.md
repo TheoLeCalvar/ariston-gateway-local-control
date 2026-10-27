@@ -59,6 +59,10 @@ KuraMetric {
 Firmware quirk: integer metrics are sent as plain varints (wire type 0) rather
 than the schema's `sfixed32`. `tools/kura_decode.py` interprets the value by the
 declared `type` and the actual wire type, so both forms decode correctly.
+Negative integers follow protobuf's rule — sign-extended to a full 64-bit
+two's-complement varint even for `INT32` — so the decoder reads the varint as a
+signed 64-bit value. `tools/kura_encode.py` is the exact inverse and
+round-trips every type (see `tools/test_kura.py`).
 
 ### Real decoded example
 
