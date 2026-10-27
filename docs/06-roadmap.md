@@ -147,6 +147,32 @@ Periods: **idx=1** hourly (today), **idx=2** daily (this month), **idx=4** month
 Remaining: confirm the Typ 20/21 runtime hypothesis, and verify the `total_
 increasing` reset behaviour at month/year boundaries against a long run.
 
+### Electricity — not available on this boiler (exhaustive sweep, RESOLVED)
+
+The TODO asked for electricity (as well as gas) consumption. It is **not reported
+by this appliance** — confirmed three ways:
+
+1. The cloud **metering export** (`MeteringExport_*.xlsx`) has only two columns,
+   *Gaz Chauffage* and *Gaz Eau chaude* — no electricity — and matches our local
+   Typ 6/9 month-for-month (728→727825, 756→756030, 9.86→9855, …).
+2. The app only ever requests Typ **6, 9, 20, 21** (MITM capture).
+3. A full `Stat/cWh` sweep of Typ 1–40 (`tools/stat_probe.py`) found data in **only
+   two distinct series**, both gas:
+   - **heating gas** under Typ **6** (aliased identically as Typ 1 and 30),
+   - **DHW gas** under Typ **9** (aliased identically as Typ 2 and 31),
+   - burner **runtime** under Typ 20/21.
+   Typs 3,4,5,7,8,18,19,22–27 are accepted (rc 200) but return **no series** (empty
+   on this device); 10–17, 28, 29, 32–40 are **absent** (rc 500). No non-zero
+   electricity series exists anywhere.
+
+Sweep mechanics worth keeping (the gateway is fussy about `Stat/cWh`): it ignores
+a single-Typ request, drops the whole reply if any requested Typ is unknown
+(**rc 500**), and `stat_probe.py` therefore probes *base (6,9) + one candidate* and
+reads `response.code` (500 = absent, 200+series = found, 200+empty = not-ready).
+
+Conclusion: the gas energy sensors already expose everything this boiler meters;
+electricity is a dead end here and the TODO item is closed.
+
 ---
 
 ## Suggested order

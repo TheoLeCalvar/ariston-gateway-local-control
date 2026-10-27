@@ -38,7 +38,10 @@ import kura_client
 import stat_decode
 
 KURA = os.path.join(HERE, "kura_client.py")
-KNOWN = {6: "heating gas (Wh)", 9: "DHW gas (Wh)",
+# Confirmed by a full 1-40 sweep: only two distinct series exist, both gas, each
+# under several alias Typ codes; 20/21 are burner runtime. No electricity series.
+KNOWN = {1: "heating gas (Wh) [=6]", 6: "heating gas (Wh)", 30: "heating gas (Wh) [=6]",
+         2: "DHW gas (Wh) [=9]", 9: "DHW gas (Wh)", 31: "DHW gas (Wh) [=9]",
          20: "heating burner runtime? (min)", 21: "DHW burner runtime? (min)"}
 
 
