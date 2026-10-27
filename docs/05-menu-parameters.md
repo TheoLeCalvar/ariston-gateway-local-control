@@ -150,18 +150,28 @@ the program in the body (field 5001). Observed ids: `1` (zone 1 heating —
 weekday + weekend profiles, confirmed by the owner) and `7`. Structure:
 
 ```
-program { 1:id  2:slot_minutes  3:profile{ 1:{} 2:{1:slot,2:state} … } …  4:comfort*10  5:eco*10 }
+program { 1:id  2:slot_minutes  3:profile{ 1:days  2:{1:slot,2:state} … } …  4:comfort*10  5:eco*10  6..9:0 }
 ```
 
 `slot_minutes` is 15, and a transition `{slot, state}` is `slot × 15 min` →
-time-of-day with `state` 1=comfort, 0=eco. Decoded sample (id 1, comfort 18.5 /
-eco 15.5): profile A = comfort 07:00–23:00; profile B = 06:30–08:30 + 17:30–23:30.
+time-of-day with `state` 1=comfort, 0=eco. `profile.1` is the **day group**:
+packed day numbers, 1=Mon … 7=Sun. Decoded sample (id 1, comfort 18.5 / eco 15.5):
+days `[7,6]` (weekend) → 07:00–23:00; days `[1,2,3,4,5]` (weekdays) → 06:30–08:30
++ 17:30–23:30 (owner-confirmed). Id 7 is a per-day program (Sun / Mon–Thu / Fri /
+Sat).
 
-`tprog.decode_tprog_body()` folds this into comfort windows; the HA integration
-exposes each program as a read-only diagnostic sensor. **Writing is not
-implemented** — only reads are captured, so the PUT body shape and the
-day→profile mapping (the empty `profile.1`) are unconfirmed. Capture one schedule
-edit in the app to resolve both before adding a write path.
+`tprog.decode_tprog_body()` keeps the raw transitions + day groups (and derives
+human windows); `tprog.build_tprog_body()` is the inverse and **reproduces the
+captured id 1 and id 7 bodies byte-for-byte**, so we can construct a valid
+schedule. The HA integration exposes each program as a read-only diagnostic
+sensor.
+
+**Writing** would be a `PUT Func/TProg` with a built body. The format is fully
+understood, but a write has **not been exercised on hardware**, and neither app
+exposes schedule editing for this gateway (so there's no edit to capture). The
+safe way to confirm is a reversible round-trip on the device: read a program,
+PUT it back unchanged (expect `response.code 200`), then PUT a one-slot change and
+read it back, keeping the original body to restore.
 
 ## Other resources seen
 

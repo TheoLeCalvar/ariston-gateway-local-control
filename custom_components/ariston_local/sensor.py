@@ -133,6 +133,10 @@ class AristonTProgSensor(CoordinatorEntity, SensorEntity):
             "comfort": prog["comfort"],
             "eco": prog["eco"],
             "slot_minutes": prog["slot_minutes"],
-            # list of day-profiles, each a list of [start, end] comfort windows
-            "profiles": prog["profiles"],
+            # one entry per day-group: which weekdays (1=Mon..7=Sun) and the
+            # comfort windows (as [start, end] HH:MM) that apply to them
+            "profiles": [
+                {"days": p["days"], "comfort_windows": p["windows"]}
+                for p in prog["profiles"]
+            ],
         }

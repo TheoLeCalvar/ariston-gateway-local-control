@@ -137,14 +137,23 @@ class TProg(unittest.TestCase):
         self.assertEqual(p["id"], 1)
         self.assertEqual(p["slot_minutes"], 15)
         self.assertEqual((p["comfort"], p["eco"]), (18.5, 15.5))
-        # second profile is the user-confirmed weekday schedule
-        self.assertEqual(p["profiles"][1],
+        # weekend profile (days 7,6) and weekday profile (1-5), owner-confirmed
+        self.assertEqual(p["profiles"][0]["days"], [7, 6])
+        self.assertEqual(p["profiles"][0]["windows"], [["07:00", "23:00"]])
+        self.assertEqual(p["profiles"][1]["days"], [1, 2, 3, 4, 5])
+        self.assertEqual(p["profiles"][1]["windows"],
                          [["06:30", "08:30"], ["17:30", "23:30"]])
 
     def test_id7_profiles(self):
         p = tprog.decode_reply_body_hex(self.ID7)
         self.assertEqual(p["id"], 7)
-        self.assertEqual(p["profiles"][0], [["08:00", "22:00"]])
+        self.assertEqual([pr["days"] for pr in p["profiles"]],
+                         [[7], [1, 2, 3, 4], [5], [6]])
+
+    def test_build_round_trips_byte_for_byte(self):
+        for hexs in (self.ID1, self.ID7):
+            p = tprog.decode_reply_body_hex(hexs)
+            self.assertEqual(tprog.build_tprog_body(p).hex(), hexs.lower())
 
     def test_empty_body_is_none(self):
         self.assertIsNone(tprog.decode_reply_body_hex(""))
