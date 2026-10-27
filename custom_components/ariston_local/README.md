@@ -49,11 +49,20 @@ catalog in [`entities.py`](entities.py):
 - **Sensors** — Wi-Fi signal, anti-legionella frequency, and live temperatures
   (zone 1 room temp, zone 1 active setpoint, boiler flow temp) read from the `T_`
   technical channel.
-- **Energy sensors** — heating and DHW gas energy (kWh), this month and trailing
-  year, from the `Stat/cWh` channel. `device_class=energy` / `state_class=
-  total_increasing`, so they plug straight into the **HA Energy dashboard** (cost
-  is left to the dashboard's tariff config). Mapping confirmed against the app's
-  energy screen (see [docs/06](../../docs/06-roadmap.md)).
+- **Energy sensors** — heating and DHW gas energy (kWh) from the `Stat/cWh`
+  channel, mapping confirmed against the app's energy screen (see
+  [docs/06](../../docs/06-roadmap.md)):
+  - **"… energy total"** (heating, DHW) — monotonic lifetime counters
+    (`total_increasing`); add *these* to the **HA Energy dashboard** (cost is
+    left to the dashboard's tariff config). The gateway has no lifetime
+    odometer, so the integration builds the total by folding the this-month
+    accumulator into a running total that only ever rises and persists it across
+    restarts; counting starts when the integration is first added.
+  - **"… this month"** and **"… (trailing year)"** — plain diagnostic read-outs
+    of the device's own windowed figures. The trailing-year window's sum can
+    *decrease* as old months roll off, which a `total_increasing` statistic
+    mis-reads as a reset — so these are deliberately not statistics and are not
+    offered to the Energy dashboard.
 - **Binary sensors** — burner/flame (`running`), holiday mode (with an `until`
   attribute), and per-zone "override active" with `target_temperature` and
   `until` attributes.
@@ -105,6 +114,10 @@ python3 -I custom_components/ariston_local/tests/test_protocol.py
 ## Status
 
 See [`CHANGELOG.md`](../../CHANGELOG.md) for the full per-version history.
+
+Version 0.13.0 — lifetime energy totals (monotonic `total_increasing` counters)
+for the Energy dashboard; the month/trailing-year figures become diagnostic
+read-outs (the rolling year window is no longer mis-fed as a counter).
 
 Version 0.12.0 — holiday mode and the temporary override are now editable from
 the UI via native entities (a "Holiday until" datetime, an "Override duration"

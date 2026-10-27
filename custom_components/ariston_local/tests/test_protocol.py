@@ -120,6 +120,27 @@ class Stat(unittest.TestCase):
     def test_kwh(self):
         self.assertEqual(energy.kwh([0, 124652, 487552]), 612.204)
 
+    def test_fold_total_is_monotonic(self):
+        oct_, nov = (2026, 10), (2026, 11)
+        # first reading: adopt as baseline, add nothing
+        total, last, lm = energy.fold_total(0.0, None, None, 5.0, oct_)
+        self.assertEqual((total, last, lm), (0.0, 5.0, oct_))
+        # same month, rises: add the increment
+        total, last, lm = energy.fold_total(total, last, lm, 8.0, oct_)
+        self.assertEqual((total, last, lm), (3.0, 8.0, oct_))
+        # same month, glitchy dip: ignore, keep high-water mark
+        total, last, lm = energy.fold_total(total, last, lm, 2.0, oct_)
+        self.assertEqual((total, last, lm), (3.0, 8.0, oct_))
+        # recovery only adds what is genuinely new (9 - 8)
+        total, last, lm = energy.fold_total(total, last, lm, 9.0, oct_)
+        self.assertEqual((total, last, lm), (4.0, 9.0, oct_))
+        # month rollover: device reset to new month -> add the whole new figure
+        total, last, lm = energy.fold_total(total, last, lm, 1.5, nov)
+        self.assertEqual((total, last, lm), (5.5, 1.5, nov))
+        # missing reading leaves everything untouched
+        self.assertEqual(
+            energy.fold_total(total, last, lm, None, nov), (5.5, 1.5, nov))
+
 
 class Override(unittest.TestCase):
     def test_build_matches_captured_put(self):

@@ -4,6 +4,19 @@ All notable changes to the `ariston_local` Home Assistant integration. Versions
 follow the `manifest.json` version. Format based on
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.13.0] - 2026-10-28
+### Added
+- **Lifetime energy totals** ("Heating energy total" / "DHW energy total"):
+  monotonic `total_increasing` kWh counters that only ever rise, built by
+  folding the this-month accumulator into a stored running total (persisted
+  across restarts). These are the sensors to add to the HA **Energy dashboard**.
+### Changed
+- The "this month" and "trailing year" energy sensors are now plain
+  **diagnostic read-outs** (no longer `total_increasing`). The trailing-year
+  figure is a rolling window whose sum can decrease as old months roll off,
+  which the Energy dashboard mis-read as a counter reset — it no longer feeds
+  statistics. Use the new lifetime totals for the dashboard.
+
 ## [0.12.0] - 2026-10-28
 ### Added
 - Holiday mode is editable from the UI without a custom card: a **"Holiday
@@ -101,5 +114,6 @@ follow the `manifest.json` version. Format based on
   `Menu/Par` protocol): config flow, number / select / switch / sensor entities,
   and a batched polling coordinator.
 
+[0.13.0]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.13.0
 [0.12.0]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.12.0
 [0.11.1]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.11.1

@@ -63,3 +63,36 @@ def decode_reply_body_hex(body_hex: str) -> dict:
 def kwh(values) -> float:
     """Sum a Wh series into kWh (rounded)."""
     return round(sum(values) / 1000.0, 3)
+
+
+def fold_total(total, last, last_month, current, now_month):
+    """Advance a monotonic lifetime total from a within-month accumulator.
+
+    The device has no lifetime odometer; the finest reliable series we poll is
+    the *this-month* accumulator (idx 2), which grows through the month and
+    resets to ~0 when a new month starts. We turn that into a counter that only
+    ever increases (what the HA Energy dashboard needs):
+
+    - first reading: adopt it as the baseline, add nothing;
+    - same calendar month and the reading went up: add the increment;
+    - same month and the reading dipped: ignore it (a glitchy/partial reply),
+      keep the high-water `last` so a recovery only adds what is genuinely new;
+    - the calendar month changed: a real reset, so add the whole new-month
+      figure. (The only loss is energy used between the last poll of the old
+      month and the rollover — a few minutes at a 10-min poll.)
+
+    `now_month` / `last_month` are (year, month) tuples. Returns the updated
+    `(total, last, last_month)`.
+    """
+    if current is None:
+        return total, last, last_month
+    if last is None:
+        return total, current, now_month
+    if last_month == now_month:
+        if current > last:
+            total += current - last
+            last = current
+    else:  # calendar month rolled over -> device reset to the new month
+        total += current
+        last, last_month = current, now_month
+    return round(total, 6), last, last_month
