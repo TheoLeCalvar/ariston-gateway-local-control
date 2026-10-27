@@ -15,7 +15,8 @@ cloud round-trip.
 - ✅ Tests: round-trip codec + analyzer + eBUS-parser unit tests (`tools/test_kura.py`, stdlib only).
 - ✅ Decoded the hex metric-name structure as **BridgeNet-over-eBUS register IDs** (little-endian register + `0xFE` broadcast + zone), confirmed against community registers (`6810` flow, `6910` return, `c04b` status). See [docs/04](docs/04-ebus-parameters.md).
 - ⬜ Build the command dictionary (`GET`/`PUT`/`EXEC` resources) by capturing the official app via the MITM proxy (use `tools/analyze_capture.py` to roll up the log).
-- ⬜ Capture a real `GET` to learn the request format, then run `tools/sweep_registers.py` to crawl the readable registers.
+- ✅ Captured a real `GET`: reads are by **named resource** (`.../GET/Func/TProg` with an `Id` metric), and each reply bundles many hex register metrics. `tools/sweep_registers.py` now GETs a list of resources.
+- ⬜ Capture the full set of GET resource names (drive the app with `analyze_capture.py --follow`), then sweep them in Mode A.
 - ⬜ Confirm per-register scaling/enums on this model and expand `tools/ebus_registers.json` from captures.
 - ⬜ Drive the device from a local client / HA integration.
 
@@ -44,7 +45,7 @@ tools/
   kura_decode.py             stdlib Eurotech Kura/Kapua payload decoder
   kura_encode.py             stdlib Kura payload encoder (inverse of the decoder)
   kura_client.py             Mode A: send GET/PUT/EXEC, read the matching REPLY
-  sweep_registers.py         Mode A: actively sweep eBUS registers (GET-only)
+  sweep_registers.py         Mode A: actively GET named resources (GET-only)
   analyze_capture.py         roll an mqtt_mitm log up into a command dictionary
   ebus_params.py             decode hex metric names into eBUS registers + enrich
   ebus_registers.json        extensible map of known eBUS registers → meaning

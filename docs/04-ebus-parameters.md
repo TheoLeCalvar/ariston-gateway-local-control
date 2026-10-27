@@ -74,34 +74,67 @@ The enrich step adds an `ebus` block to each recognized hex metric, including a
            "unit": "C", "scaled_value": 45.2}}}}
 ```
 
-## Active register sweep (Mode A)
+## How a GET actually works (from a captured request)
 
-Once the gateway is on your **local broker** (Mode A, docs/03), you can probe the
-device directly instead of waiting for the app to read something. `tools/sweep_
-registers.py` sends `GET`s across a set of registers, collects the replies, and
-annotates the ones it recognizes. It is GET-only, rate-limited, and **dry-run
-until you pass `--send`**.
+A real GET captured from the cloud settles the request format:
 
-The catch: we know the hex metric-name layout but not how a `GET` *request* is
-shaped on this device — the resource path and/or request metrics. So first
-capture one real `GET` with the MITM proxy and read off its format, then tell the
-sweeper with `--resource` / `--req-metric` (templates accept `{hexname}`,
-`{ebus_id}`, `{reg_le}`, `{zone}`, `{flag}`):
-
-```bash
-# 1. preview the requests (sends nothing) and sanity-check the shape
-tools/sweep_registers.py --known --resource '{hexname}'
-
-# 2. once confirmed against a real GET, probe for real
-tools/sweep_registers.py --known --cafile broker/server.crt \
-    --resource '{hexname}' --send --out sweep.jsonl
-
-# probe a numeric range (e.g. around the known temperature block)
-tools/sweep_registers.py --range 6800 6a00 --cafile broker/server.crt --send
+```
+topic    $EDC/ari/<MAC>/ar1/GET/Func/TProg
+metrics  request.id            (STRING)
+         requester.client.id   (STRING)
+         Id = "1"              (STRING — selects the zone/instance)
 ```
 
-Each answered register prints its decoded value with the eBUS hint; unknown
-registers that answer are new discoveries to add to the map below.
+So the device is read by **named resource** (e.g. `Func/TProg`), *not* by a
+per-register hex ID. The hex register IDs decoded above are the **metrics inside
+the reply bundle**: one GET to a resource returns many registers at once. The
+device confirms this by subscribing to `$EDC/ari/<MAC>/ar1/GET/#` (plus `PUT/#`,
+`EXEC/#`, `DEPLOY-V2/#`, `REPLY/#`) on connect.
+
+Read one resource directly and enrich it:
+
+```bash
+tools/kura_client.py get Func/TProg -m Id:STRING=1 --cafile broker/server.crt \
+    | tools/ebus_params.py --enrich
+```
+
+## Active resource sweep (Mode A)
+
+Once the gateway is on your **local broker** (Mode A, docs/03), `tools/sweep_
+registers.py` GETs a list of named resources, collects the bundled replies, and
+annotates recognized registers. GET-only, rate-limited, **dry-run until `--send`**.
+
+First learn the resource names: run the MITM, drive the app through every screen,
+and watch `analyze_capture.py mitm.jsonl --follow` for the `+ GET` lines — each
+one is a resource name. Put them in a file (one per line), then:
+
+```bash
+# preview (sends nothing)
+tools/sweep_registers.py --resources Func/TProg,Func/Zone1
+
+# sweep for real once the gateway is on the local broker
+tools/sweep_registers.py --resources-file resources.txt \
+    --cafile broker/server.crt --send --out sweep.jsonl
+```
+
+`--id N` sets the `Id` metric (default `"1"`); `--no-id` omits it. Each answered
+resource prints its metrics with eBUS hints; unmapped registers in a reply are
+new discoveries to add to the map below. (A legacy register mode —
+`--known`/`--ids`/`--range` → `GET {hexname}` — remains for the unlikely case a
+resource turns out to be register-addressed.)
+
+## Device (from the BIRTH certificate)
+
+The gateway's `MQTT/BIRTH` message identifies it:
+
+| field | value |
+|---|---|
+| `display_name` | `REM4_OT_ZB` (REM4 OpenTherm + Zigbee gateway) |
+| `serial_number` | `292221G20182` |
+| `firmware_version` / `kura_version` | `105.15.15b` (Eurotech ESF/Kura 105) |
+| `connection_interface` | `9C05D613C8AD-Octarine` |
+| `custom_attribute2` (ZB_FwVer) | `10.00.26` (Zigbee firmware) |
+| `application_ids` | `DEPLOY-V2` |
 
 ## Extending the map
 

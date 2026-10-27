@@ -11,10 +11,12 @@ import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import argparse
 import kura_encode
 import kura_decode
 import analyze_capture
 import ebus_params
+import sweep_registers
 
 
 class RoundTrip(unittest.TestCase):
@@ -154,6 +156,34 @@ class EbusParams(unittest.TestCase):
         self.assertEqual(e["name"], "heating_flow_temp")
         self.assertEqual(e["scaled_value"], 45.2)
         self.assertNotIn("ebus", out["metrics"]["StatusCode"])
+
+
+class Sweeper(unittest.TestCase):
+    def _args(self, **kw):
+        base = dict(resources=[], resources_file=None, id="1", no_id=False,
+                    req_metric=[], known=False, ids=[], range=None, step=1,
+                    resource="{hexname}", flag=0x00, zone=0x01)
+        base.update(kw)
+        return argparse.Namespace(**base)
+
+    def test_resource_targets_match_captured_get(self):
+        # the real GET: topic .../GET/Func/TProg, metric Id = STRING "1"
+        t = sweep_registers.build_targets(self._args(resources=["Func/TProg"]))
+        self.assertEqual(len(t), 1)
+        self.assertEqual(t[0]["resource"], "Func/TProg")
+        self.assertEqual(t[0]["metrics"]["Id"], ("STRING", "1"))
+        # the encoded payload decodes back to Id STRING "1"
+        data = kura_encode.encode_payload(t[0]["metrics"], timestamp=False)
+        self.assertEqual(kura_decode.decode_payload(data)["metrics"]["Id"],
+                         {"type": "STRING", "value": "1"})
+
+    def test_no_id(self):
+        t = sweep_registers.build_targets(self._args(resources=["X"], no_id=True))
+        self.assertNotIn("Id", t[0]["metrics"])
+
+    def test_register_mode_still_works(self):
+        t = sweep_registers.build_targets(self._args(ids=["6810"]))
+        self.assertEqual(t[0]["resource"], "106800FE01")
 
 
 if __name__ == "__main__":
