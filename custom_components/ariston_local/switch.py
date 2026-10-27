@@ -18,6 +18,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
 
 
 class AristonSwitch(AristonEntity, SwitchEntity):
+    def __init__(self, coordinator, spec: entities.SwitchSpec):
+        super().__init__(coordinator, spec.menu, spec.name)
+
     @property
     def is_on(self):
         raw = self._raw
