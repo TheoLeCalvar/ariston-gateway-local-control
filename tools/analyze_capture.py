@@ -10,17 +10,41 @@ Usage:
     tools/analyze_capture.py mitm.jsonl
     tools/analyze_capture.py mitm.jsonl --json      # machine-readable
     tools/analyze_capture.py mitm.jsonl --metrics   # just the metric catalog
+    tools/analyze_capture.py mitm.jsonl --follow     # live: print new discoveries
+                                                     #   as you drive the app
 
 Topics decode as $EDC/<account>/<client>/<app>/<VERB>/<resource...>, so the
 "resource" is everything after the verb (e.g. PUT/310/... -> resource 310/...).
 """
+import os
 import sys
 import json
+import time
 import argparse
 from collections import defaultdict
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    import ebus_params
+except Exception:
+    ebus_params = None
+
 VERBS = ("GET", "PUT", "EXEC", "REPLY")
 # C2S = gateway->cloud (telemetry, replies); S2C = cloud->gateway (commands).
+
+
+def ebus_hint(name):
+    """Short 'ebus_id name (unit)' hint for a hex metric, or '' if unknown/none."""
+    if ebus_params is None:
+        return ""
+    info = ebus_params.annotate(name)
+    if not info:
+        return ""
+    known = info.get("known")
+    if not known:
+        return f"  [eBUS {info['ebus_id']} z{info['zone']} — unmapped]"
+    unit = f" {known['unit']}" if known.get("unit") else ""
+    return f"  [eBUS {info['ebus_id']} z{info['zone']} = {known['name']}{unit}]"
 
 
 def split_edc(topic):
@@ -137,12 +161,91 @@ def to_json(resources, metrics_global, topics, pkt_counts):
     }
 
 
+def _iter_new_lines(path, from_start):
+    """Yield complete JSONL lines from a growing file, tail -f style.
+
+    Follows across truncation/rotation (restarts if the file shrinks) and never
+    yields a half-written line (waits for the terminating newline).
+    """
+    while not os.path.exists(path):
+        time.sleep(0.5)
+    f = open(path)
+    if not from_start:
+        f.seek(0, os.SEEK_END)
+    buf = ""
+    inode = os.fstat(f.fileno()).st_ino
+    while True:
+        chunk = f.readline()
+        if chunk:
+            buf += chunk
+            if buf.endswith("\n"):
+                line = buf.strip()
+                buf = ""
+                if line:
+                    yield line
+            continue
+        # no data: check for rotation, then wait
+        try:
+            if os.stat(path).st_ino != inode or os.stat(path).st_size < f.tell():
+                f.close()
+                f = open(path)
+                inode = os.fstat(f.fileno()).st_ino
+                buf = ""
+                continue
+        except FileNotFoundError:
+            pass
+        time.sleep(0.4)
+
+
+def follow(path, from_start):
+    """Print each newly-seen topic / resource / metric as it appears."""
+    seen_topics = set()
+    seen_resources = set()
+    seen_metrics = set()
+    print(f"# watching {path} — drive the app; new discoveries print below "
+          f"(Ctrl-C to stop)", flush=True)
+    for line in _iter_new_lines(path, from_start):
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        topic = obj.get("topic")
+        if not topic:
+            continue
+        ts = time.strftime("%H:%M:%S")
+        if topic not in seen_topics:
+            seen_topics.add(topic)
+            print(f"{ts}  + topic   {topic}", flush=True)
+        verb, resource = split_edc(topic)
+        if verb and (verb, resource) not in seen_resources:
+            seen_resources.add((verb, resource))
+            print(f"{ts}  + {verb:4}    {resource or '(root)'}", flush=True)
+        decoded = obj.get("decoded") or {}
+        for name, m in (decoded.get("metrics") or {}).items():
+            if name in seen_metrics:
+                continue
+            seen_metrics.add(name)
+            val = m.get("value") if isinstance(m, dict) else m
+            print(f"{ts}  + metric  {name} = {_short(val)}{ebus_hint(name)}", flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Summarize an mqtt_mitm.py capture")
     ap.add_argument("logfile", help="JSONL capture from mqtt_mitm.py (or live_monitor output)")
     ap.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     ap.add_argument("--metrics", action="store_true", help="print only the metric catalog")
+    ap.add_argument("--follow", "-f", action="store_true",
+                    help="tail the log and print new topics/resources/metrics live")
+    ap.add_argument("--from-start", action="store_true",
+                    help="with --follow, also replay the existing file first")
     args = ap.parse_args()
+
+    if args.follow:
+        try:
+            follow(args.logfile, args.from_start)
+        except KeyboardInterrupt:
+            pass
+        return
 
     data = summarize(args.logfile)
     if args.json:

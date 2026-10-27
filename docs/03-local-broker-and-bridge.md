@@ -86,11 +86,27 @@ Roll a capture up into that dictionary with the analyzer:
 tools/analyze_capture.py mitm.jsonl            # human-readable summary
 tools/analyze_capture.py mitm.jsonl --json     # machine-readable
 tools/analyze_capture.py mitm.jsonl --metrics  # just the metric catalog
+tools/analyze_capture.py mitm.jsonl --follow   # LIVE: print new finds as you
+                                               #   drive the app (Ctrl-C to stop)
 ```
 
 It groups PUBLISHes by verb + resource, lists the metrics and observed values per
 resource, and prints a catalog of every metric name seen (with its types and
 example values) — the raw material for mapping the hex eBUS parameter IDs.
+
+**`--follow` is the discovery workflow.** Leave it running in a second terminal
+while the MITM logs to `mitm.jsonl`, then press buttons in the app one at a time.
+Each *newly-seen* topic, GET/PUT/EXEC resource and metric prints the moment it
+appears, with the eBUS register hint inline, so you can see exactly which resource
+and metric each action produced:
+
+```
+13:06:36  + GET     72/0/0
+13:06:36  + metric  106800FE01 = 452  [eBUS 6810 z1 = heating_flow_temp C]
+```
+
+Correlate the value you set in the app with the printed metric to confirm the
+register and its scaling, then add it to `tools/ebus_registers.json`.
 
 This proxy is a passive observer on the wire: it relays faithfully and only logs.
 It does not modify, inject, or drop packets.
