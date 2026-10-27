@@ -223,6 +223,16 @@ class MenuParams(unittest.TestCase):
         self.assertEqual(menu_params.apply_scale(menu_params.to_raw(18.5, "x10"), "x10"), 18.5)
 
 
+class StatDecode(unittest.TestCase):
+    def test_decode_body(self):
+        import stat_decode
+        # one entry: idx=4, typ=6, values=[0, 100, 200]
+        entry = bytes.fromhex("0804" "1006" "1a04" "0064c801")
+        body = bytes([0x0a, len(entry)]) + entry
+        series = stat_decode.decode_stat_body(body)
+        self.assertEqual(series, [{"typ": 6, "idx": 4, "values": [0, 100, 200]}])
+
+
 class WriteMenu(unittest.TestCase):
     def test_put_matches_captured_packet(self):
         # the real captured PUT of U_3 = 1

@@ -15,7 +15,7 @@ From `mitm.jsonl`, correlating requests to replies:
 |---|---|---|---|
 | `Func/Der`   | `Z` (zone) | `response.code` only | **dérogation** = temporary override; empty = none active |
 | `Func/SpecF` | — | `Mode=1, T=0` | **special function** (holiday/absence); Mode selects it, T a time/temp |
-| `Stat/cWh`   | `Typ=6,20,9,21` | `T=<timestamp>` only | **energy stats**; Typ selects a counter — captured idle |
+| `Stat/cWh`   | `Typ=6,20,9,21` | timestamp + **data in the body** | **energy stats**; decoded (see §3) — the values are there |
 
 So the protocol and plumbing are done; what's missing is the *content* of these
 three functions when active. One capture each (feature on, in the app, via the
@@ -71,23 +71,44 @@ as override.
 
 ## 3. Energy / gas consumption (kWh + cost)
 
-**Source — `Stat/cWh`** with `Typ` selecting a counter (observed `6, 20, 9, 21`).
-Capture: open the app's stats/energy screen and record the full `Stat/cWh` replies;
-map each `Typ` to a quantity (likely heating vs DHW, gas vs electrical, per period)
-and its unit/scaling. (This REM4 is an OpenTherm gateway, so "gas" is the boiler's
-own estimate, not a meter.)
+**The data is available locally and decoded.** It is NOT in the reply metrics
+(which is why it looked empty at first) — it is in the KuraPayload **body**
+(field 5001), a nested protobuf of repeated entries `{1: idx, 2: Typ, 3: packed
+varint values}`. `tools/stat_decode.py` decodes it; `tools/stat_decode.py --mitm
+mitm.jsonl` dumps every series from a capture.
 
-**Implement:**
-- add `gateway.read_stats(typs)` (GET `Stat/cWh`, `Typ` list), polled on a **slow**
-  interval (e.g. hourly) via a second coordinator or a throttled update,
-- expose **sensor** entities with `device_class=energy`, `state_class=
-  total_increasing`, `unit=kWh` so they feed the **HA Energy dashboard**,
-- **cost** is left to HA: the Energy dashboard applies a tariff, or a user template
-  sensor multiplies kWh by a price. The integration provides kWh only (keeps it
-  tariff-agnostic).
+A GET to `Stat/cWh` requests a `Typ` set (observed `6, 9, 20, 21`); the reply
+returns, per Typ, one series per `idx`. The idx is a period granularity (by series
+length): **idx=1 → 24 (hourly/today)**, **idx=4 → 13 (monthly/year)**, idx=2 → 20
+(window TBC). Decoded sample (from the capture):
 
-If the counters turn out to be period totals (not monotonic), expose them as plain
-measurement sensors and let a utility-meter helper accumulate.
+```
+Typ= 6 idx=4 [monthly]  [0,124652,487552,727825,756030,497308,50028,5850,0,0,0,0,0]
+                        sum ≈ 2 649 000  -> ~2649 kWh if Wh (winter-peaked)
+Typ= 9 idx=4 [monthly]  [37963,38358,50675,56911,...]  (year-round, non-seasonal)
+Typ=20 idx=4 [monthly]  [0,694,2722,3877,4025,2705,258,30,0,...]
+Typ=21 idx=4 [monthly]  [197,219,272,288,230,297,120,266,211,127,50,58,127]
+```
+
+Strong hypothesis: **Typ=6 = central-heating energy in Wh** (the winter-peaked
+series sums to a plausible ~2649 kWh/yr). Typ 9/20/21 are likely DHW energy, gas
+input, and burner starts/hours in some order — **unconfirmed**. (This REM4 is an
+OpenTherm gateway, so any "gas" figure is the boiler's own estimate.)
+
+**Still needed — one correlation, not a new capture:** read the app's energy
+screen and match its displayed categories + numbers to the decoded series, to pin
+each `Typ`, its unit, and what `idx` periods are.
+
+**Implement (once Typ semantics are known):**
+- `gateway.read_stats(typs)` (GET `Stat/cWh`, `Typ` list), decode the body with the
+  ported stat decoder, polled on a **slow** interval (e.g. hourly),
+- the arrays are per-period buckets, not a running counter. Expose, per quantity:
+  "this month" (current monthly bucket) and "this year" (sum of the monthly
+  series) as **sensor**s. For the **HA Energy dashboard** (which wants a
+  monotonic `total_increasing`), expose the year-to-date cumulative sum with a
+  `last_reset` at the year boundary, or let a `utility_meter` helper accumulate.
+- **cost** stays in HA: the Energy dashboard applies the tariff; the integration
+  provides kWh only (tariff-agnostic).
 
 ---
 

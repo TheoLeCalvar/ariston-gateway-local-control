@@ -58,6 +58,7 @@ tools/
   write_menu.py              Mode A: write params (PUT Menu/Par), scaling-aware
   menu_params.py             decode U_/T_ menu codes + enrich (map in .json)
   menu_params.json           menu number → label/unit/scale/enum (from capture)
+  stat_decode.py             decode Stat/cWh energy series (data lives in the body)
   analyze_capture.py         roll an mqtt_mitm log up into a command dictionary
   ebus_params.py             decode hex metric names into eBUS registers + enrich
   ebus_registers.json        extensible map of known eBUS registers → meaning
