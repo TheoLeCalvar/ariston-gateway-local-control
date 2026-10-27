@@ -236,6 +236,14 @@ class Pump(threading.Thread):
 
 
 def handle(client_sock, args, up_ip):
+    # Grab the peer address now: ssl.wrap_socket() detaches the underlying
+    # socket (fileno -> -1) since Python 3.7, so getpeername() on client_sock
+    # afterwards raises "Bad file descriptor".
+    try:
+        peer = client_sock.getpeername()[0]
+    except OSError:
+        peer = "?"
+
     cctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     cctx.load_cert_chain(args.cert, args.key)
     try:
@@ -254,7 +262,7 @@ def handle(client_sock, args, up_ip):
     raw_up = socket.create_connection((up_ip, args.upstream_port), timeout=15)
     up_tls = uctx.wrap_socket(raw_up, server_hostname=args.upstream_host)
 
-    log({"event": "session_open", "peer": client_sock.getpeername()[0],
+    log({"event": "session_open", "peer": peer,
          "upstream": f"{up_ip}:{args.upstream_port}"})
 
     a = Pump(client_tls, up_tls, "C2S")  # gateway -> cloud
@@ -263,7 +271,7 @@ def handle(client_sock, args, up_ip):
     b.start()
     a.join()
     b.join()
-    log({"event": "session_close", "peer": client_sock.getpeername()[0] if client_sock.fileno() != -1 else "?"})
+    log({"event": "session_close", "peer": peer})
 
 
 def main():
