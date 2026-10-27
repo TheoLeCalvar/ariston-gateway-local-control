@@ -113,6 +113,49 @@ def build_tprog_body(program: dict) -> bytes:
     return kura._ld(1, inner)
 
 
+def hhmm_to_slot(hhmm: str, step: int) -> int:
+    """'06:30', 15 -> 26 (nearest slot)."""
+    h, m = (int(x) for x in str(hhmm).split(":"))
+    return int(round((h * 60 + m) / step))
+
+
+def windows_to_transitions(windows, step: int) -> list[list[int]]:
+    """[['06:30','08:30'], …] -> [[slot,1],[slot,0], …], sorted by time."""
+    transitions = []
+    for start, end in windows:
+        transitions.append([hhmm_to_slot(start, step), 1])
+        transitions.append([hhmm_to_slot(end, step), 0])
+    transitions.sort(key=lambda t: t[0])
+    return transitions
+
+
+def apply_changes(program: dict, *, comfort=None, eco=None, profiles=None) -> dict:
+    """Return a copy of a decoded program with the given changes applied.
+
+    profiles is a list of {days: [1..7], windows: [[start, end], …]}; the windows
+    are converted to transitions at the program's slot resolution."""
+    out = {
+        "id": program["id"],
+        "slot_minutes": program["slot_minutes"],
+        "comfort": program["comfort"],
+        "eco": program["eco"],
+        "profiles": [dict(p) for p in program["profiles"]],
+        "reserved": dict(program.get("reserved", {})),
+    }
+    if comfort is not None:
+        out["comfort"] = float(comfort)
+    if eco is not None:
+        out["eco"] = float(eco)
+    if profiles is not None:
+        step = out["slot_minutes"]
+        out["profiles"] = [
+            {"days": list(p["days"]),
+             "transitions": windows_to_transitions(p["windows"], step)}
+            for p in profiles
+        ]
+    return out
+
+
 def decode_reply_body_hex(body_hex: str) -> dict | None:
     """Decode one program from a reply body; None if empty."""
     if not body_hex:

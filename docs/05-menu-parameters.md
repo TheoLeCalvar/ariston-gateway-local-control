@@ -143,6 +143,14 @@ measurements (×10, read via `T_<menu>`):
 `climate` entity needs; the override's effect being visible on `T_4.3.1` confirms
 the two are the live view of the same zone.
 
+### Unidentified technical reads (seen, not yet labelled)
+
+A full app read-through surfaced these `T_` reads; all read-only, meanings not yet
+confirmed (raw values as captured): `T_2.1.0`=0, `T_2.2.8`=3, `T_2.5.7`=1,
+`T_2.5.8`=28800 (≈8 h), `T_4.0.2`=500, `T_4.2.3`=50, `T_4.3.4`=0, `T_4.8.0`=0,
+`T_8.2.9`=8–9, `T_19.1.1`=80, `T_19.1.6`=9. Logged here so they're not
+re-investigated blind; identify against the installer manual before exposing any.
+
 ## Time program (`Func/TProg`) — read decoded
 
 The weekly heating schedule. `GET Func/TProg` with metric `Id` (STRING) returns
@@ -166,12 +174,13 @@ captured id 1 and id 7 bodies byte-for-byte**, so we can construct a valid
 schedule. The HA integration exposes each program as a read-only diagnostic
 sensor.
 
-**Writing** would be a `PUT Func/TProg` with a built body. The format is fully
-understood, but a write has **not been exercised on hardware**, and neither app
-exposes schedule editing for this gateway (so there's no edit to capture). The
-safe way to confirm is a reversible round-trip on the device: read a program,
-PUT it back unchanged (expect `response.code 200`), then PUT a one-slot change and
-read it back, keeping the original body to restore.
+**Writing is confirmed on hardware.** A `PUT Func/TProg` with a body built by
+`build_tprog_body()` is accepted (`response.code 200`) and applied live — verified
+with the reversible round-trip in `tools/tprog_roundtrip.py` (read → identity PUT
+→ one-slot change → restore, each read back). The HA service
+`ariston_local.set_time_program` exposes it: it reads the current program, applies
+`comfort`/`eco` and/or `profiles` (day-group → comfort windows), and PUTs the
+rebuilt body — only ever sending a body derived from one the device gave us.
 
 ## Other resources seen
 

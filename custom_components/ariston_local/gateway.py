@@ -158,6 +158,23 @@ class AristonGateway:
             "GET", "Func/TProg", {"Id": ("STRING", str(prog_id))}, timeout)
         return tprog.decode_reply_body_hex(reply.get("body", ""))
 
+    def set_time_program(self, prog_id, *, comfort=None, eco=None, profiles=None,
+                         timeout=8) -> int | None:
+        """Read-modify-write a time program via Func/TProg.
+
+        Reads the current program, applies the given changes, and PUTs the
+        rebuilt body (we only ever send a body derived from one the device gave
+        us). Returns the response.code."""
+        current = self.read_time_program(prog_id, timeout)
+        if current is None:
+            raise ValueError(f"time program {prog_id} not readable")
+        program = tprog.apply_changes(
+            current, comfort=comfort, eco=eco, profiles=profiles)
+        body = tprog.build_tprog_body(program)
+        reply = self._request("PUT", "Func/TProg", {}, timeout, body=body)
+        rc = (reply.get("metrics") or {}).get("response.code")
+        return rc.get("value") if isinstance(rc, dict) else rc
+
     # ----------------------------------------------------------------- override
     def read_override(self, zone=1, timeout=8) -> dict | None:
         """Read the temporary override (dérogation) for a zone via Func/Der."""

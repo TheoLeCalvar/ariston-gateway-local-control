@@ -63,6 +63,9 @@ catalog in [`entities.py`](entities.py):
 - `ariston_local.set_override` — hold a zone at a temperature for a duration
   (default 2 h), native dérogation via `Func/Der`; the boiler reverts on its own.
 - `ariston_local.clear_override` — cancel a zone's override now.
+- `ariston_local.set_time_program` — change a weekly schedule (`Func/TProg`):
+  set `comfort`/`eco` and/or replace the `profiles` (day-group → comfort windows,
+  `HH:MM` snapped to 15-min slots). Read-modify-write, confirmed on hardware.
 
 Add more by mapping the code in `menu_params.json` and adding a spec to
 `entities.py` — no other code changes needed.
@@ -85,7 +88,7 @@ python3 -I custom_components/ariston_local/tests/test_protocol.py
 
 ## Status
 
-Version 0.6.0 — adds read-only time-program (Func/TProg) diagnostic sensors.
+Version 0.7.0 — the time program is now writable via the `ariston_local.set_time_program` service (confirmed on hardware), on top of 0.6.x read-only sensors.
 
 Version 0.5.0 — adds a per-zone `climate` entity (zone 1) on top of 0.4.0's live
 temperature sensors and confirmed enum labels. Current temp + active setpoint come

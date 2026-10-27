@@ -44,3 +44,52 @@ clear_override:
           min: 1
           max: 8
           mode: box
+
+set_time_program:
+  name: Set time program
+  description: >-
+    Change a heating weekly schedule (Func/TProg). Reads the current program and
+    applies only the fields you give. Provide comfort/eco to change the
+    setpoints, and/or profiles to replace the schedule. Times snap to 15-min slots.
+  fields:
+    id:
+      name: Program id
+      description: Time-program id (e.g. 1).
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 0
+          max: 99
+          mode: box
+    comfort:
+      name: Comfort temperature
+      description: Comfort setpoint (°C).
+      example: 18.5
+      selector:
+        number:
+          min: 5
+          max: 35
+          step: 0.5
+          unit_of_measurement: "°C"
+          mode: box
+    eco:
+      name: Eco temperature
+      description: Reduced/eco setpoint (°C).
+      example: 15.5
+      selector:
+        number:
+          min: 5
+          max: 35
+          step: 0.5
+          unit_of_measurement: "°C"
+          mode: box
+    profiles:
+      name: Profiles
+      description: >-
+        List of day-groups to replace the schedule. Each is {days: [1-7,
+        Mon=1], windows: [["HH:MM","HH:MM"], …]} where each window is a comfort
+        period. Example: [{days: [1,2,3,4,5], windows: [["06:30","08:30"],
+        ["17:30","23:30"]]}, {days: [6,7], windows: [["07:00","23:00"]]}].
+      selector:
+        object:

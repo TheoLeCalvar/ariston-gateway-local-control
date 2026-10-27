@@ -155,6 +155,26 @@ class TProg(unittest.TestCase):
             p = tprog.decode_reply_body_hex(hexs)
             self.assertEqual(tprog.build_tprog_body(p).hex(), hexs.lower())
 
+    def test_hhmm_slot_conversion(self):
+        self.assertEqual(tprog.hhmm_to_slot("06:30", 15), 26)
+        self.assertEqual(tprog.hhmm_to_slot("23:30", 15), 94)
+        self.assertEqual(tprog.windows_to_transitions([["06:30", "08:30"]], 15),
+                         [[26, 1], [34, 0]])
+
+    def test_apply_setpoints_keeps_schedule(self):
+        p = tprog.decode_reply_body_hex(self.ID1)
+        out = tprog.apply_changes(p, comfort=20.0)
+        self.assertEqual(out["comfort"], 20.0)
+        self.assertEqual(out["profiles"], p["profiles"])  # untouched
+
+    def test_apply_profiles_rebuilds_known_body(self):
+        # feeding id1's own windows back in reproduces its body byte-for-byte
+        p = tprog.decode_reply_body_hex(self.ID1)
+        profiles = [{"days": pr["days"], "windows": pr["windows"]}
+                    for pr in p["profiles"]]
+        out = tprog.apply_changes(p, profiles=profiles)
+        self.assertEqual(tprog.build_tprog_body(out).hex(), self.ID1.lower())
+
     def test_empty_body_is_none(self):
         self.assertIsNone(tprog.decode_reply_body_hex(""))
 
