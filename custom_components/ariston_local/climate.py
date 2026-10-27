@@ -40,7 +40,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
     coordinator = store["coordinator"]
     override = store.get("override")
     active = store["active_zones"]
-    add_entities(AristonClimate(coordinator, override, spec)
+    add_entities(AristonClimate(coordinator, override, store, spec)
                  for spec in entities.climates(active))
 
 
@@ -52,10 +52,11 @@ class AristonClimate(CoordinatorEntity, ClimateEntity):
     # HA >= 2024.x expects these on climate entities that only support the above.
     _enable_turn_on_off_backwards_compatibility = False
 
-    def __init__(self, coordinator, override_coordinator, spec: entities.ClimateSpec):
+    def __init__(self, coordinator, override_coordinator, store, spec: entities.ClimateSpec):
         super().__init__(coordinator)
         self._spec = spec
         self._override = override_coordinator
+        self._store = store
         self._temp_code = f"T_{spec.temp_menu}"
         self._setpoint_code = f"T_{spec.setpoint_menu}"
         self._mode_code = f"U_{spec.mode_menu}"
@@ -102,12 +103,20 @@ class AristonClimate(CoordinatorEntity, ClimateEntity):
         if raw is None:
             return
         await self.coordinator.async_write(self._mode_code, raw)
+        # Returning to the schedule (AUTO = Chauffage programmé) cancels any
+        # manual hold still running, so the zone actually follows the program.
+        if hvac_mode == HVACMode.AUTO:
+            await self.hass.async_add_executor_job(
+                self.coordinator.gateway.clear_override, self._spec.zone)
+            if self._override is not None:
+                await self._override.async_request_refresh()
 
     async def async_set_temperature(self, **kwargs) -> None:
         temp = kwargs.get(ATTR_TEMPERATURE)
         if temp is None:
             return
-        end = int(time.time() + DEFAULT_CLIMATE_HOLD_HOURS * 3600)
+        hours = self._store.get("override_hours", DEFAULT_CLIMATE_HOLD_HOURS)
+        end = int(time.time() + hours * 3600)
         rc = await self.hass.async_add_executor_job(
             self.coordinator.gateway.set_override, self._spec.zone, float(temp), end)
         if rc not in (None, 200):

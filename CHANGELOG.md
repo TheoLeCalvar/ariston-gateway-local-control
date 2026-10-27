@@ -4,6 +4,18 @@ All notable changes to the `ariston_local` Home Assistant integration. Versions
 follow the `manifest.json` version. Format based on
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.12.0] - 2026-10-28
+### Added
+- Holiday mode is editable from the UI without a custom card: a **"Holiday
+  until" datetime** entity (set it to enable holiday until that moment via
+  `Func/SpecF`; it reads back the active end) and a **"Clear holiday" button**.
+- Temporary override is UI-adjustable: an **"Override duration" number** (hours,
+  restored across restarts) that the climate card's temperature change uses as
+  its hold length, plus per-zone **"Zone N clear override" buttons**.
+### Changed
+- Switching a zone's climate back to **Auto** (Chauffage programmé) now also
+  clears any active override, so the zone resumes its schedule immediately.
+
 ## [0.11.1] - 2026-10-27
 ### Fixed
 - Switch platform crashed on setup (`AristonEntity.__init__() missing 'name'`);
@@ -89,4 +101,5 @@ follow the `manifest.json` version. Format based on
   `Menu/Par` protocol): config flow, number / select / switch / sensor entities,
   and a batched polling coordinator.
 
+[0.12.0]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.12.0
 [0.11.1]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.11.1

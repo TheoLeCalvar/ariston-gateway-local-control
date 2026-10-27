@@ -19,6 +19,7 @@ from .const import (
     CONF_PORT,
     CONF_SCAN_INTERVAL,
     DEFAULT_ACTIVE_ZONES,
+    DEFAULT_CLIMATE_HOLD_HOURS,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     TPROG_IDS,
@@ -36,7 +37,8 @@ from .services import async_register_services, async_unregister_services
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.CLIMATE, Platform.NUMBER, Platform.SELECT, Platform.SWITCH,
-             Platform.SENSOR, Platform.BINARY_SENSOR]
+             Platform.SENSOR, Platform.BINARY_SENSOR, Platform.DATETIME,
+             Platform.BUTTON]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -70,7 +72,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "coordinator": coordinator, "stats": stats, "override": overrides,
-        "tprog": tprog, "holiday": holiday, "active_zones": active_zones}
+        "tprog": tprog, "holiday": holiday, "active_zones": active_zones,
+        # default hold length for a climate-card temperature change; the
+        # "Override duration" number entity updates this at runtime.
+        "override_hours": DEFAULT_CLIMATE_HOLD_HOURS}
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     async_register_services(hass)
     entry.async_on_unload(entry.add_update_listener(_async_reload))

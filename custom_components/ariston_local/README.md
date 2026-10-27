@@ -57,6 +57,13 @@ catalog in [`entities.py`](entities.py):
 - **Binary sensors** — burner/flame (`running`), holiday mode (with an `until`
   attribute), and per-zone "override active" with `target_temperature` and
   `until` attributes.
+- **Date/time** — "Holiday until": set it to turn on holiday/absence mode until
+  that moment (`Func/SpecF`); it reads back the active end. Pairs with the
+  "Clear holiday" button, so holiday is fully editable from a standard card — no
+  custom card needed.
+- **Number (HA-side)** — "Override duration" (hours): how long a temperature set
+  on the climate card holds before auto-reverting. Restored across restarts.
+- **Buttons** — "Clear holiday" and per-zone "Zone N clear override".
 - **Time program** (diagnostic) — one sensor per schedule (`Func/TProg` id 1 and
   7); state is the comfort/eco pair. A legible `schedule` attribute lists each
   day-group (e.g. `Mon–Fri: 06:30–08:30, 17:30–23:30`); `profiles` keeps the
@@ -96,6 +103,15 @@ python3 -I custom_components/ariston_local/tests/test_protocol.py
 ```
 
 ## Status
+
+See [`CHANGELOG.md`](../../CHANGELOG.md) for the full per-version history.
+
+Version 0.12.0 — holiday mode and the temporary override are now editable from
+the UI via native entities (a "Holiday until" datetime, an "Override duration"
+number, and clear buttons) — no custom card required. Switching a zone back to
+Auto also cancels any active override.
+
+Version 0.11.1 — fix the switch platform failing to load.
 
 Version 0.11.0 — an **active-zones** option (hide zones 2/3 on a single-zone
 system; they stop being polled and shown).
