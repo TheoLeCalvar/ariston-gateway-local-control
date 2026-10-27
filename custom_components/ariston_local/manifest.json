@@ -1,7 +1,7 @@
 {
   "domain": "ariston_local",
-  "name": "Ariston Local (Menu/Par)",
-  "version": "0.13.0",
+  "name": "Ariston Local",
+  "version": "0.13.1",
   "documentation": "https://github.com/TheoLeCalvar/ariston-gateway-local-control",
   "issue_tracker": "https://github.com/TheoLeCalvar/ariston-gateway-local-control/issues",
   "codeowners": ["@TheoLeCalvar"],
