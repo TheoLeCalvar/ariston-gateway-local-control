@@ -2,6 +2,7 @@
 *.key
 *.pem
 server.crt
+connect-iot.crt
 *.pcap
 *.pcapng
 *.bin

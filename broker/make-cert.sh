@@ -1,16 +1,23 @@
 #!/usr/bin/env bash
-# Generate the self-signed server cert the local broker presents to the gateway.
-# The gateway does NOT validate the server certificate, so a self-signed cert
-# with the right CN/SAN is enough for it to connect.
+# Generate the self-signed server cert the local broker/MITM presents to the
+# gateway. Whether it is accepted depends on the gateway: the everyware-cloud
+# gateway does NOT validate it, so the right CN/SAN is enough. An AWS-IoT-era
+# gateway may validate against a baked-in CA, in which case this won't be
+# accepted (see docs/08).
+#
+# Usage: make-cert.sh [HOSTNAME] [OUT_PREFIX]
+#   make-cert.sh                                   -> server.crt/key, CN broker-ari.everyware-cloud.com
+#   make-cert.sh connect.iot.remotethermo.com connect-iot  -> connect-iot.crt/key
 set -euo pipefail
 cd "$(dirname "$0")"
 
-HOST="broker-ari.everyware-cloud.com"
+HOST="${1:-broker-ari.everyware-cloud.com}"
+PREFIX="${2:-server}"
 
 openssl req -x509 -newkey rsa:2048 -nodes \
-  -keyout server.key -out server.crt -days 825 \
+  -keyout "${PREFIX}.key" -out "${PREFIX}.crt" -days 825 \
   -subj "/C=IT/O=TestBroker/CN=${HOST}" \
   -addext "subjectAltName=DNS:${HOST}"
 
-echo "Wrote server.crt / server.key for ${HOST}"
-openssl x509 -in server.crt -noout -subject -ext subjectAltName
+echo "Wrote ${PREFIX}.crt / ${PREFIX}.key for ${HOST}"
+openssl x509 -in "${PREFIX}.crt" -noout -subject -ext subjectAltName
