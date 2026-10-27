@@ -14,7 +14,7 @@ import uuid
 
 import paho.mqtt.client as mqtt
 
-from . import kura, menu, energy
+from . import kura, menu, energy, override
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -101,7 +101,7 @@ class AristonGateway:
             ev.set()
 
     # ----------------------------------------------------------------- request/reply
-    def _request(self, verb, resource, metrics, timeout=8):
+    def _request(self, verb, resource, metrics, timeout=8, body=None):
         req_id = uuid.uuid4().hex[:16]
         ev = threading.Event()
         with self._lock:
@@ -109,7 +109,7 @@ class AristonGateway:
         payload = dict(metrics)
         payload["request.id"] = req_id
         payload["requester.client.id"] = self.requester
-        data = kura.encode_payload(payload, timestamp=False)
+        data = kura.encode_payload(payload, timestamp=False, body=body)
         self._client.publish(self._topic(self.mac, verb, resource), data, qos=0)
         got = ev.wait(timeout)
         with self._lock:
@@ -144,3 +144,23 @@ class AristonGateway:
         typ_str = ",".join(str(t) for t in typs)
         reply = self._request("GET", "Stat/cWh", {"Typ": ("STRING", typ_str)}, timeout)
         return energy.decode_reply_body_hex(reply.get("body", ""))
+
+    # ----------------------------------------------------------------- override
+    def read_override(self, zone=1, timeout=8) -> dict | None:
+        """Read the temporary override (dérogation) for a zone via Func/Der."""
+        reply = self._request("GET", "Func/Der", {"Z": ("STRING", str(zone))}, timeout)
+        return override.parse_reply_body_hex(reply.get("body", ""))
+
+    def set_override(self, zone, temp_c, end_epoch, timeout=8) -> int | None:
+        """Set a temporary override: hold temp_c on a zone until end_epoch."""
+        body = override.build_der_body(zone, True, temp_c, end_epoch)
+        reply = self._request("PUT", "Func/Der", {}, timeout, body=body)
+        rc = (reply.get("metrics") or {}).get("response.code")
+        return rc.get("value") if isinstance(rc, dict) else rc
+
+    def clear_override(self, zone, timeout=8) -> int | None:
+        """Clear a zone's temporary override (revert to schedule now)."""
+        body = override.build_der_body(zone, False, 0, 0)
+        reply = self._request("PUT", "Func/Der", {}, timeout, body=body)
+        rc = (reply.get("metrics") or {}).get("response.code")
+        return rc.get("value") if isinstance(rc, dict) else rc

@@ -13,6 +13,7 @@ import kura  # noqa: E402
 import menu  # noqa: E402
 import entities  # noqa: E402
 import energy  # noqa: E402
+import override  # noqa: E402
 
 
 class Kura(unittest.TestCase):
@@ -64,6 +65,25 @@ class Stat(unittest.TestCase):
 
     def test_kwh(self):
         self.assertEqual(energy.kwh([0, 124652, 487552]), 612.204)
+
+
+class Override(unittest.TestCase):
+    def test_build_matches_captured_put(self):
+        # captured: zone 1, enable, 18.0 C, end epoch 1793124000
+        body = override.build_der_body(1, True, 18.0, 1793124000)
+        self.assertEqual(body.hex(), "0a0d0801100118b40120a0cd83d706")
+
+    def test_roundtrip(self):
+        body = override.build_der_body(1, True, 18.0, 1793124000)
+        info = override.parse_der_body(body)
+        self.assertEqual(info, {"zone": 1, "enabled": True, "temp": 18.0,
+                                "end": 1793124000})
+
+    def test_idle_parses_inactive(self):
+        body = override.build_der_body(1, False, 0, 0)
+        info = override.parse_der_body(body)
+        self.assertFalse(info["enabled"])
+        self.assertIsNone(info["temp"])
 
 
 if __name__ == "__main__":

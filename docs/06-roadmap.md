@@ -29,28 +29,29 @@ helpers per resource. Small, low-risk refactor.
 
 ---
 
-## 1. Temporary temperature override
+## 1. Temporary temperature override — DONE (native `Func/Der`)
 
-Change a zone to a target for N hours (default 2), then revert.
+**Confirmed format** (data in the body, field 5001), one entry per zone:
 
-**Native (preferred) — `Func/Der`.** Capture: in the app, set a temporary comfort
-override on zone 1 for 2 h, grab the `PUT Func/Der` (and the `GET` reply once
-active). Expected fields: target temperature, duration or end-time, zone `Z`. Then:
-- add `gateway.set_derogation(zone, temp, duration)` / `clear_derogation(zone)`,
-- expose an HA **service** `ariston_local.temporary_override(zone, temperature,
-  duration="2:00")`, and surface the active override as a read-only sensor
-  (remaining time / target).
-- Bonus: model it as a **climate preset** (`PRESET_BOOST`) once the climate entity
-  exists.
+```
+entry { 1: zone, 2: enable(1/0), 3: temp*10, 4: end-epoch (absolute seconds) }
+```
 
-**HA-side fallback (works today).** Service that: reads the zone's current comfort
-setpoint, writes the new one, and schedules the revert with
-`async_track_point_in_time`. Persist the pending revert (entry runtime data + a
-restored `datetime`) so an HA restart during the window still reverts. Downsides:
-nothing shown on the thermostat; revert logic lives in HA.
+Captured write of "zone 1, 18 °C": body `0a0d 0801 1001 18b401 20a0cd83d706`
+(zone=1, enable=1, temp=180, end=1793124000) — reproduced byte-for-byte. The GET
+(metric `Z=<zone>`) reads it back in the same shape; the device reverts on its own
+at the end epoch (standard Unix time, so `end = now + duration`).
 
-**Decision:** use `Func/Der` if the capture shows a clean temp+duration write;
-otherwise ship the HA-side timer.
+**Implemented** (`custom_components/ariston_local/`):
+- `override.py`: build/parse the Func/Der body.
+- `gateway.read_override / set_override / clear_override` (PUT carries a body now).
+- `AristonOverrideCoordinator` + a **binary_sensor** per zone ("Zone N override
+  active", with `target_temperature` and `until` attributes).
+- HA **services** `ariston_local.set_override` (zone, temperature, duration=2h) and
+  `ariston_local.clear_override` (see `services.yaml`).
+
+Remaining: a `clear` capture to confirm enable=0 is the right disable (we infer
+it); and a `climate` `PRESET_BOOST` once the climate entity exists.
 
 ## 2. Holidays / absence mode
 

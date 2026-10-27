@@ -20,12 +20,18 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
 )
-from .coordinator import AristonCoordinator, AristonStatsCoordinator
+from .coordinator import (
+    AristonCoordinator,
+    AristonOverrideCoordinator,
+    AristonStatsCoordinator,
+)
 from .gateway import AristonGateway
+from .services import async_register_services, async_unregister_services
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.NUMBER, Platform.SELECT, Platform.SWITCH, Platform.SENSOR]
+PLATFORMS = [Platform.NUMBER, Platform.SELECT, Platform.SWITCH, Platform.SENSOR,
+             Platform.BINARY_SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -46,9 +52,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     stats = AristonStatsCoordinator(hass, entry, gateway)
     await stats.async_config_entry_first_refresh()
 
+    overrides = AristonOverrideCoordinator(hass, entry, gateway)
+    await overrides.async_config_entry_first_refresh()
+
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
-        "coordinator": coordinator, "stats": stats}
+        "coordinator": coordinator, "stats": stats, "override": overrides}
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    async_register_services(hass)
     entry.async_on_unload(entry.add_update_listener(_async_reload))
     return True
 
@@ -58,6 +68,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unloaded:
         store = hass.data[DOMAIN].pop(entry.entry_id)
         await hass.async_add_executor_job(store["coordinator"].gateway.disconnect)
+        async_unregister_services(hass)
     return unloaded
 
 

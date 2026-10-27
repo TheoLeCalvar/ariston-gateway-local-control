@@ -42,6 +42,27 @@ class AristonCoordinator(DataUpdateCoordinator):
         await self.async_request_refresh()
 
 
+class AristonOverrideCoordinator(DataUpdateCoordinator):
+    """Polls each zone's temporary override (Func/Der). Data is {zone: info|None}."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry,
+                 gateway: AristonGateway, zones=(1, 2, 3), scan_interval: int = 120):
+        super().__init__(
+            hass, _LOGGER, name=f"{DOMAIN}_override",
+            update_interval=timedelta(seconds=scan_interval))
+        self.entry = entry
+        self.gateway = gateway
+        self.zones = zones
+
+    async def _async_update_data(self) -> dict:
+        def _read_all():
+            return {z: self.gateway.read_override(z) for z in self.zones}
+        try:
+            return await self.hass.async_add_executor_job(_read_all)
+        except Exception as err:  # noqa: BLE001
+            raise UpdateFailed(f"error reading overrides: {err}") from err
+
+
 class AristonStatsCoordinator(DataUpdateCoordinator):
     """Polls energy stats (Stat/cWh) on a slow interval; data is {(typ, idx): [Wh]}."""
 
