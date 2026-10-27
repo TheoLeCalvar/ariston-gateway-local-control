@@ -18,6 +18,10 @@ _LOGGER = logging.getLogger(__name__)
 SERVICE_SET_OVERRIDE = "set_override"
 SERVICE_CLEAR_OVERRIDE = "clear_override"
 SERVICE_SET_TIME_PROGRAM = "set_time_program"
+SERVICE_SET_HOLIDAY = "set_holiday"
+SERVICE_CLEAR_HOLIDAY = "clear_holiday"
+
+_HOLIDAY_SCHEMA = vol.Schema({vol.Required("until"): cv.datetime})
 
 _HHMM = vol.Match(r"^\d{1,2}:\d{2}$")
 _PROFILE_SCHEMA = vol.Schema({
@@ -85,10 +89,28 @@ def async_register_services(hass: HomeAssistant) -> None:
                                 pid, rc)
             await store["tprog"].async_request_refresh()
 
+    async def _set_holiday(call: ServiceCall) -> None:
+        end = int(call.data["until"].timestamp())
+        for store in _stores(hass):
+            gw = store["coordinator"].gateway
+            rc = await hass.async_add_executor_job(gw.set_holiday, end)
+            if rc not in (None, 200):
+                _LOGGER.warning("set_holiday returned response.code=%s", rc)
+            await store["holiday"].async_request_refresh()
+
+    async def _clear_holiday(call: ServiceCall) -> None:
+        for store in _stores(hass):
+            gw = store["coordinator"].gateway
+            await hass.async_add_executor_job(gw.clear_holiday)
+            await store["holiday"].async_request_refresh()
+
     hass.services.async_register(DOMAIN, SERVICE_SET_OVERRIDE, _set, schema=_SET_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_CLEAR_OVERRIDE, _clear, schema=_CLEAR_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_SET_TIME_PROGRAM, _set_tprog,
                                  schema=_TPROG_SCHEMA)
+    hass.services.async_register(DOMAIN, SERVICE_SET_HOLIDAY, _set_holiday,
+                                 schema=_HOLIDAY_SCHEMA)
+    hass.services.async_register(DOMAIN, SERVICE_CLEAR_HOLIDAY, _clear_holiday)
 
 
 def async_unregister_services(hass: HomeAssistant) -> None:
@@ -96,3 +118,5 @@ def async_unregister_services(hass: HomeAssistant) -> None:
         hass.services.async_remove(DOMAIN, SERVICE_SET_OVERRIDE)
         hass.services.async_remove(DOMAIN, SERVICE_CLEAR_OVERRIDE)
         hass.services.async_remove(DOMAIN, SERVICE_SET_TIME_PROGRAM)
+        hass.services.async_remove(DOMAIN, SERVICE_SET_HOLIDAY)
+        hass.services.async_remove(DOMAIN, SERVICE_CLEAR_HOLIDAY)

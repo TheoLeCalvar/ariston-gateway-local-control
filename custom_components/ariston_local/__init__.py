@@ -23,6 +23,7 @@ from .const import (
 )
 from .coordinator import (
     AristonCoordinator,
+    AristonHolidayCoordinator,
     AristonOverrideCoordinator,
     AristonStatsCoordinator,
     AristonTProgCoordinator,
@@ -60,9 +61,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     tprog = AristonTProgCoordinator(hass, entry, gateway, TPROG_IDS)
     await tprog.async_config_entry_first_refresh()
 
+    holiday = AristonHolidayCoordinator(hass, entry, gateway)
+    await holiday.async_config_entry_first_refresh()
+
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "coordinator": coordinator, "stats": stats, "override": overrides,
-        "tprog": tprog}
+        "tprog": tprog, "holiday": holiday}
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     async_register_services(hass)
     entry.async_on_unload(entry.add_update_listener(_async_reload))

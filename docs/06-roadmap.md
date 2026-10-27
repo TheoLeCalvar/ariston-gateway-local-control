@@ -62,22 +62,23 @@ docs/05: `current_temperature` = `T_4.3.0`, `target_temperature` = `T_4.3.1`
 native dérogation (`Func/Der`) for a default 3 h hold that auto-reverts.
 Remaining: capture zones 2/3 `T_` codes to extend `entities.CLIMATES`.
 
-## 2. Holidays / absence mode
+## 2. Holidays / absence mode — DONE (native `Func/SpecF`)
 
-Hold a fixed (low) setpoint until a chosen date.
+**Confirmed format** (data in the metrics, not a body): a PUT `Func/SpecF` with
+`Mode=4` (holiday) and `T=<end-epoch>` (absolute Unix seconds) enables it; the
+reply is `response.code 200`. Captured "until 27/10/2026" → `Mode=4,
+T=1793145540` (= 2026-10-27 23:59 UTC). Idle is `Mode=1, T=0` (so clear = Mode 1,
+T 0). The device returns to normal on its own at the end.
 
-**Native (preferred) — `Func/SpecF`.** Capture: enable holiday/absence mode with an
-end date in the app; diff `Mode` and `T` against the idle `Mode=1, T=0`. Likely
-`Mode=<holiday>` and `T=<end-date or days>`, possibly with a setpoint. Then:
-- `gateway.set_special_function(mode, until)` / clear,
-- expose a **switch** "Holiday mode" + a **datetime** entity for the end date (or a
-  single service `ariston_local.set_holiday(until, temperature=None)`).
+**Implemented** (`custom_components/ariston_local/`):
+- `gateway.read_special_function / set_holiday(end) / clear_holiday`,
+- `AristonHolidayCoordinator` + a **binary_sensor** "Holiday mode" (with an
+  `until` attribute),
+- HA **services** `ariston_local.set_holiday` (until) and
+  `ariston_local.clear_holiday`.
 
-**HA-side fallback.** Service writes a fixed eco setpoint to all zones (or sets
-each zone mode) and schedules restoration at the date; same persistence handling
-as override.
-
-**Decision:** prefer `Func/SpecF`; it's the device's own absence function.
+Remaining: only `Mode` 1 (idle) and 4 (holiday) are seen; other special-function
+modes are unmapped.
 
 ## 3. Energy / gas consumption (kWh + cost)
 

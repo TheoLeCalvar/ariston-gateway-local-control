@@ -14,7 +14,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import entities
-from .const import DOMAIN, MANUFACTURER
+from .const import DOMAIN, MANUFACTURER, SPECF_HOLIDAY_MODE
 from .entity import AristonEntity
 
 
@@ -26,6 +26,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
     ents = [AristonOverrideSensor(override, entry, z) for z in override.zones]
     ents += [AristonStatusBinarySensor(coordinator, spec)
              for spec in entities.BINARY_SENSORS]
+    ents.append(AristonHolidaySensor(store["holiday"], entry))
     add_entities(ents)
 
 
@@ -41,6 +42,35 @@ class AristonStatusBinarySensor(AristonEntity, BinarySensorEntity):
     def is_on(self):
         raw = self._raw
         return None if raw is None else bool(raw)
+
+
+class AristonHolidaySensor(CoordinatorEntity, BinarySensorEntity):
+    """Holiday / absence mode active (Func/SpecF Mode 4), with its end time."""
+
+    _attr_has_entity_name = True
+
+    def __init__(self, coordinator, entry: ConfigEntry):
+        super().__init__(coordinator)
+        mac = entry.unique_id or entry.data.get("mac", "unknown")
+        self._attr_unique_id = f"{mac}_holiday"
+        self._attr_name = "Holiday mode"
+        self._attr_icon = "mdi:bag-suitcase"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, mac)}, manufacturer=MANUFACTURER,
+            name=f"Ariston gateway {mac}")
+
+    @property
+    def is_on(self):
+        data = self.coordinator.data
+        return None if not data else data.get("mode") == SPECF_HOLIDAY_MODE
+
+    @property
+    def extra_state_attributes(self):
+        data = self.coordinator.data or {}
+        if data.get("mode") != SPECF_HOLIDAY_MODE or not data.get("end"):
+            return None
+        return {"until": datetime.fromtimestamp(
+            data["end"], tz=timezone.utc).isoformat()}
 
 
 class AristonOverrideSensor(CoordinatorEntity, BinarySensorEntity):

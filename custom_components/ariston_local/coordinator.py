@@ -86,6 +86,25 @@ class AristonTProgCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"error reading time programs: {err}") from err
 
 
+class AristonHolidayCoordinator(DataUpdateCoordinator):
+    """Polls the special function (Func/SpecF). Data is {mode, end}."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry,
+                 gateway: AristonGateway, scan_interval: int = 300):
+        super().__init__(
+            hass, _LOGGER, name=f"{DOMAIN}_holiday",
+            update_interval=timedelta(seconds=scan_interval))
+        self.entry = entry
+        self.gateway = gateway
+
+    async def _async_update_data(self) -> dict:
+        try:
+            return await self.hass.async_add_executor_job(
+                self.gateway.read_special_function)
+        except Exception as err:  # noqa: BLE001
+            raise UpdateFailed(f"error reading special function: {err}") from err
+
+
 class AristonStatsCoordinator(DataUpdateCoordinator):
     """Polls energy stats (Stat/cWh) on a slow interval; data is {(typ, idx): [Wh]}."""
 

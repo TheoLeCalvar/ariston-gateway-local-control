@@ -93,3 +93,20 @@ set_time_program:
         ["17:30","23:30"]]}, {days: [6,7], windows: [["07:00","23:00"]]}].
       selector:
         object:
+
+set_holiday:
+  name: Set holiday mode
+  description: >-
+    Enable holiday / absence mode (Func/SpecF) until a date. The boiler holds its
+    reduced setting and returns to normal on its own at the end.
+  fields:
+    until:
+      name: Until
+      description: When holiday mode ends.
+      required: true
+      selector:
+        datetime:
+
+clear_holiday:
+  name: Clear holiday mode
+  description: Cancel holiday / absence mode now.

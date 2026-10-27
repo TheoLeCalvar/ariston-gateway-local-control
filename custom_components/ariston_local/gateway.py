@@ -194,3 +194,28 @@ class AristonGateway:
         reply = self._request("PUT", "Func/Der", {}, timeout, body=body)
         rc = (reply.get("metrics") or {}).get("response.code")
         return rc.get("value") if isinstance(rc, dict) else rc
+
+    # ----------------------------------------------------------------- holiday
+    def read_special_function(self, timeout=8) -> dict:
+        """Read the special function (Func/SpecF): {mode, end}. Mode 4 = holiday."""
+        reply = self._request("GET", "Func/SpecF", {}, timeout)
+        m = reply.get("metrics") or {}
+        def g(k):
+            v = m.get(k)
+            return v.get("value") if isinstance(v, dict) else v
+        return {"mode": g("Mode"), "end": g("T")}
+
+    def set_holiday(self, end_epoch, timeout=8) -> int | None:
+        """Enable holiday/absence mode until end_epoch (absolute Unix seconds)."""
+        reply = self._request(
+            "PUT", "Func/SpecF",
+            {"Mode": ("INT32", 4), "T": ("INT32", int(end_epoch))}, timeout)
+        rc = (reply.get("metrics") or {}).get("response.code")
+        return rc.get("value") if isinstance(rc, dict) else rc
+
+    def clear_holiday(self, timeout=8) -> int | None:
+        """Cancel holiday mode (back to idle: Mode 1, T 0)."""
+        reply = self._request(
+            "PUT", "Func/SpecF", {"Mode": ("INT32", 1), "T": ("INT32", 0)}, timeout)
+        rc = (reply.get("metrics") or {}).get("response.code")
+        return rc.get("value") if isinstance(rc, dict) else rc

@@ -51,8 +51,9 @@ catalog in [`entities.py`](entities.py):
   total_increasing`, so they plug straight into the **HA Energy dashboard** (cost
   is left to the dashboard's tariff config). Mapping confirmed against the app's
   energy screen (see [docs/06](../../docs/06-roadmap.md)).
-- **Binary sensors** — burner/flame (`running`), and per-zone "override active"
-  with `target_temperature` and `until` attributes.
+- **Binary sensors** — burner/flame (`running`), holiday mode (with an `until`
+  attribute), and per-zone "override active" with `target_temperature` and
+  `until` attributes.
 - **Time program** (diagnostic) — one read-only sensor per schedule (`Func/TProg`
   id 1 and 7); state is the comfort/eco pair, and the decoded day profiles
   (comfort windows as `HH:MM` ranges) are attributes. Read-only — writing the
@@ -66,6 +67,8 @@ catalog in [`entities.py`](entities.py):
 - `ariston_local.set_time_program` — change a weekly schedule (`Func/TProg`):
   set `comfort`/`eco` and/or replace the `profiles` (day-group → comfort windows,
   `HH:MM` snapped to 15-min slots). Read-modify-write, confirmed on hardware.
+- `ariston_local.set_holiday` (until) / `ariston_local.clear_holiday` — native
+  holiday/absence mode (`Func/SpecF`); the boiler returns to normal at the date.
 
 Add more by mapping the code in `menu_params.json` and adding a spec to
 `entities.py` — no other code changes needed.
@@ -88,7 +91,7 @@ python3 -I custom_components/ariston_local/tests/test_protocol.py
 
 ## Status
 
-Version 0.8.0 — adds a burner/flame binary sensor and Wi-Fi link-quality sensor (identified by app correlation), on top of 0.7.0 schedule writes.
+Version 0.9.0 — adds native holiday/absence mode (Func/SpecF) services + a Holiday binary sensor, plus a water-pressure sensor, on top of 0.8.x burner/Wi-Fi sensors.
 
 Version 0.5.0 — adds a per-zone `climate` entity (zone 1) on top of 0.4.0's live
 temperature sensors and confirmed enum labels. Current temp + active setpoint come

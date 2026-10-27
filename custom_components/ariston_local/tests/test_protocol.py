@@ -123,6 +123,20 @@ class Override(unittest.TestCase):
         self.assertIsNone(info["temp"])
 
 
+class Holiday(unittest.TestCase):
+    # captured PUT Func/SpecF enabling holiday until 2026-10-27 23:59Z
+    CAP = ("c2b802440a137265717565737465722e636c69656e742e69641005422b4b6170756"
+           "1506f6f6c2d313739333132303238323839382d383039303631393536353139363"
+           "53837373731c2b8020b0a0154100330c4f584d706c2b8020a0a044d6f646510033"
+           "004c2b802240a0a726571756573742e6964100542142d3536353332323931323932"
+           "3237333931393238")
+
+    def test_holiday_put_metrics(self):
+        m = kura.decode_payload(bytes.fromhex(self.CAP))["metrics"]
+        self.assertEqual(m["Mode"], {"type": "INT32", "value": 4})
+        self.assertEqual(m["T"], {"type": "INT32", "value": 1793145540})
+
+
 class TProg(unittest.TestCase):
     # captured Func/TProg reply bodies (docs/05)
     ID1 = ("0a450801100f1a100a0207061204081c10011204085c10001a1f0a050102030405"
