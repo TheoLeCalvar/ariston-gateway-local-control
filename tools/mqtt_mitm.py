@@ -262,6 +262,12 @@ def handle(client_sock, args, up_ip):
     raw_up = socket.create_connection((up_ip, args.upstream_port), timeout=15)
     up_tls = uctx.wrap_socket(raw_up, server_hostname=args.upstream_host)
 
+    # Clear the connect timeout: MQTT sessions are long-lived and idle between
+    # keepalive pings, so a lingering recv timeout would tear the session down
+    # ~15s after the cloud goes quiet (and the gateway would reconnect in a loop).
+    up_tls.settimeout(None)
+    client_tls.settimeout(None)
+
     log({"event": "session_open", "peer": peer,
          "upstream": f"{up_ip}:{args.upstream_port}"})
 
