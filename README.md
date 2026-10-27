@@ -18,7 +18,8 @@ cloud round-trip.
 - ✅ Found the real **config channel**: the `Menu/Par` resource reads/writes settings by installer-menu code (`U_6.3.1.0.0` = menu 6.3.1.0.0). Mapped the codes to the web installer menu and confirmed ×10 temperature scaling + enums. See [docs/05](docs/05-menu-parameters.md).
 - ✅ Confirmed the **write** format from a captured PUT: `PUT Menu/Par` with the code as the metric name (`U_3 = 1`), no timestamp — reproduced byte-for-byte. `tools/write_menu.py` writes scaling-aware, dry-run + confirm by default.
 - ✅ Tooling: `read_menu.py`/`write_menu.py` read and write menu params in Mode A; `menu_params.py`/`.json` decode and annotate them.
-- ⬜ Drive the device end-to-end in Mode A (fully local) and build the Home Assistant integration on top.
+- ✅ **Full local control confirmed on hardware** (Mode A): read a parameter, wrote a setpoint, and the thermostat's own display updated — no cloud involved.
+- ⬜ Build the Home Assistant integration on top (local MQTT, no cloud round-trip).
 - ⬜ Confirm per-register scaling/enums on this model and expand `tools/ebus_registers.json` from captures.
 - ⬜ Drive the device from a local client / HA integration.
 
