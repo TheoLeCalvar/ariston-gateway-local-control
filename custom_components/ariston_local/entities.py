@@ -65,7 +65,7 @@ NUMBERS = [
     NumberSpec("6.3.0.0", "Zone 1 flow setpoint", 20, 80, 1),
     NumberSpec("6.3.0.2", "Zone 2 flow setpoint", 20, 80, 1),
     NumberSpec("6.3.0.4", "Zone 3 flow setpoint", 20, 80, 1),
-    NumberSpec("6.9.0", "DHW comfort setpoint", 35, 65, 1),
+    NumberSpec("6.9.0", "DHW comfort setpoint", 40, 65, 1),  # device bounds (SystemState)
 ]
 
 # Mode selector. All labels confirmed byte-for-byte from a capture (see docs/05):
