@@ -8,8 +8,11 @@ Typ codes and decodes whatever the device returns, so we can spot the
 screen. For each (Typ, idx) it prints the series length, its sum, a kWh guess
 (sum/1000), and the first values.
 
-The device returns only the Typ codes it actually has, so a wide request is
-safe; we still batch to keep each request small.
+The gateway drops the *entire* reply if a request names a Typ it doesn't have,
+so we must ask **one Typ at a time**: an unknown code only times out itself,
+while the real series still answer. (This is why a batched 1-40 request got no
+reply at all even though 6/9/20/21 exist.) Sweeping ~40 codes one by one takes a
+couple of minutes because the absent ones each wait out the timeout.
 
 Usage (against the gateway on your local broker, Mode A):
     MQTT_HOST=127.0.0.1 MQTT_PORT=8883 tools/stat_probe.py
@@ -48,38 +51,39 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--typs", default="1-40", help="Typ codes to sweep, e.g. '1-40' or '6,9,12,16'")
-    ap.add_argument("--batch", type=int, default=8, help="Typ codes per GET")
     ap.add_argument("--host", default=kura_client.DEFAULTS["host"])
     ap.add_argument("--port", default=kura_client.DEFAULTS["port"])
     ap.add_argument("--account", default=kura_client.DEFAULTS["account"])
     ap.add_argument("--client", default=kura_client.DEFAULTS["client"], help="device MAC / client id")
     ap.add_argument("--app", default=kura_client.DEFAULTS["app"])
     ap.add_argument("--cafile", default=None, help="broker cert (adds --insecure)")
-    ap.add_argument("--timeout", type=int, default=10)
+    ap.add_argument("--timeout", type=int, default=6,
+                    help="per-Typ reply wait (absent codes wait this out)")
     args = ap.parse_args()
 
     typs = _parse_typs(args.typs)
     found: dict = {}  # (typ, idx) -> values
-    for i in range(0, len(typs), args.batch):
-        chunk = typs[i:i + args.batch]
-        typ_str = ",".join(str(t) for t in chunk)
+    # One Typ per request: a request naming an unknown Typ gets no reply at all.
+    for typ in typs:
         try:
             res = kura_client.send_request(
-                "get", "Stat/cWh", {"Typ": ("STRING", typ_str)},
+                "get", "Stat/cWh", {"Typ": ("STRING", str(typ))},
                 host=args.host, port=args.port, account=args.account,
                 client=args.client, app=args.app, cafile=args.cafile,
                 timeout=args.timeout)
         except Exception as err:  # noqa: BLE001
-            print(f"  [Typ {typ_str}] request failed: {err}", file=sys.stderr)
+            print(f"  Typ {typ}: request failed: {err}", file=sys.stderr)
             continue
         reply = res.get("reply")
         if not reply:
-            print(f"  [Typ {typ_str}] no reply", file=sys.stderr)
+            print(f"  Typ {typ}: -", file=sys.stderr)
             continue
         series = stat_decode.decode_stat_body(bytes.fromhex(reply.get("body", "")))
-        for s in series:
-            if s["typ"] is not None and s["idx"] is not None:
-                found[(s["typ"], s["idx"])] = s["values"]
+        got = [s for s in series if s["typ"] is not None and s["idx"] is not None]
+        print(f"  Typ {typ}: {len(got)} series"
+              + ("" if got else " (empty reply)"), file=sys.stderr)
+        for s in got:
+            found[(s["typ"], s["idx"])] = s["values"]
 
     if not found:
         print("No series returned. Is the gateway connected to the broker "
