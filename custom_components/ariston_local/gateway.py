@@ -159,12 +159,17 @@ class AristonGateway:
         return tprog.decode_reply_body_hex(reply.get("body", ""))
 
     def set_time_program(self, prog_id, *, comfort=None, eco=None, profiles=None,
-                         timeout=8) -> int | None:
+                         timeout=8, verify=True) -> int | None:
         """Read-modify-write a time program via Func/TProg.
 
         Reads the current program, applies the given changes, and PUTs the
         rebuilt body (we only ever send a body derived from one the device gave
-        us). Returns the response.code."""
+        us). The boiler is the source of truth, so the read is done immediately
+        before the write: we never push a stale copy. Returns the response.code.
+
+        With verify (default), the program is read back and compared to what we
+        sent; a mismatch is logged (it would mean the schedule was also changed
+        on the boiler in the same instant -- the boiler's copy wins)."""
         current = self.read_time_program(prog_id, timeout)
         if current is None:
             raise ValueError(f"time program {prog_id} not readable")
@@ -173,7 +178,15 @@ class AristonGateway:
         body = tprog.build_tprog_body(program)
         reply = self._request("PUT", "Func/TProg", {}, timeout, body=body)
         rc = (reply.get("metrics") or {}).get("response.code")
-        return rc.get("value") if isinstance(rc, dict) else rc
+        rc = rc.get("value") if isinstance(rc, dict) else rc
+        if verify and rc in (None, 200):
+            applied = self.read_time_program(prog_id, timeout)
+            if applied is None or tprog.build_tprog_body(applied) != body:
+                _LOGGER.warning(
+                    "time program %s read-back differs from the write "
+                    "(concurrent change on the boiler?); the boiler's copy wins",
+                    prog_id)
+        return rc
 
     # ----------------------------------------------------------------- override
     def read_override(self, zone=1, timeout=8) -> dict | None:

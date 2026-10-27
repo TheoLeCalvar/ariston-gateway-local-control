@@ -21,8 +21,8 @@ A transition slot * slot_minutes is the time of day, e.g. {28,1} with slot=15 ->
 
 decode_tprog_body() keeps the raw transitions and days (so a program round-trips
 through build_tprog_body) and also derives human comfort windows. Writing to the
-device is a PUT Func/TProg with a built body -- NOT yet exercised on hardware;
-build_tprog_body only guarantees we can reconstruct what we read.
+device is a PUT Func/TProg with a built body, confirmed on hardware via a
+reversible round-trip (read, identity PUT, one-slot change, restore).
 """
 from __future__ import annotations
 
@@ -154,6 +154,44 @@ def apply_changes(program: dict, *, comfort=None, eco=None, profiles=None) -> di
             for p in profiles
         ]
     return out
+
+
+_DAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
+
+def day_range_label(days) -> str:
+    """[1,2,3,4,5] -> 'Mon–Fri'; [6,7] -> 'Sat–Sun'; [1,3] -> 'Mon, Wed'."""
+    ds = sorted({int(d) for d in days if 1 <= int(d) <= 7})
+    if not ds:
+        return ""
+    runs, run = [], [ds[0]]
+    for d in ds[1:]:
+        if d == run[-1] + 1:
+            run.append(d)
+        else:
+            runs.append(run)
+            run = [d]
+    runs.append(run)
+    parts = []
+    for r in runs:
+        if len(r) >= 2:
+            parts.append(f"{_DAY_NAMES[r[0] - 1]}–{_DAY_NAMES[r[-1] - 1]}")
+        else:
+            parts.append(_DAY_NAMES[r[0] - 1])
+    return ", ".join(parts)
+
+
+def describe_profiles(profiles, *, step=15) -> list[str]:
+    """Readable per-day-group lines, e.g. 'Mon–Fri: 06:30–08:30, 17:30–23:30'."""
+    lines = []
+    for p in profiles:
+        windows = p.get("windows")
+        if windows is None:
+            windows = _windows(p.get("transitions", []), step)
+        label = day_range_label(p["days"])
+        body = ", ".join(f"{s}–{e}" for s, e in windows) if windows else "eco all day"
+        lines.append(f"{label}: {body}")
+    return lines
 
 
 def decode_reply_body_hex(body_hex: str) -> dict | None:

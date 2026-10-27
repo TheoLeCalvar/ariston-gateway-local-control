@@ -18,8 +18,13 @@ DEFAULT_SCAN_INTERVAL = 60  # seconds
 DEFAULT_CLIMATE_HOLD_HOURS = 3
 
 # Time-program ids observed on the wire (Func/TProg). 1 = zone 1 heating program
-# (weekday + weekend profiles), 7 = a second program. Read-only.
+# (weekday + weekend profiles), 7 = a second program.
 TPROG_IDS = (1, 7)
+
+# The schedule lives on the boiler (source of truth, runs even if HA is down); HA
+# just reflects it and writes edits back. Poll often enough that a schedule edited
+# on the thermostat itself surfaces in HA within a few minutes.
+TPROG_SCAN_INTERVAL = 300  # seconds
 
 # Special function (Func/SpecF). Mode 4 = holiday/vacances (hold until T, an
 # absolute end epoch); Mode 1 = idle/none (observed when nothing is active).

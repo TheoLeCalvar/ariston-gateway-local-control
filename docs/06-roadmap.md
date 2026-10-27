@@ -80,6 +80,26 @@ T 0). The device returns to normal on its own at the end.
 Remaining: only `Mode` 1 (idle) and 4 (holiday) are seen; other special-function
 modes are unmapped.
 
+## 2b. Weekly time program — read + write (native `Func/TProg`)
+
+**Local-first, boiler-owned.** The schedule lives on the boiler and runs there
+regardless of HA; the integration only reflects and edits it.
+
+- **Read**: `AristonTProgCoordinator` polls `Func/TProg` (ids 1, 7) every 5 min
+  (`TPROG_SCAN_INTERVAL`), so an edit made on the thermostat itself surfaces in
+  HA. A diagnostic sensor per id exposes a legible `schedule` attribute
+  (`tprog.describe_profiles`) plus the structured `profiles`.
+- **Write**: `set_time_program` (service, confirmed on hardware) is
+  read-modify-write — it reads the live program immediately before the PUT, so it
+  never pushes a stale copy, then reads back and logs a warning if the result
+  differs (a concurrent thermostat edit; the boiler's copy wins). No locking: the
+  only clobber window is the ~seconds of an active HA write, self-healed by the
+  next poll.
+- **Edit UX**: a dependency-free weekly comfort/eco grid card in `lovelace/`
+  (reads the sensor, writes via the service). HA core's native `schedule` helper
+  is deliberately *not* used: an integration can't write a helper's blocks, so it
+  could only work HA-owns-truth, the opposite of this design.
+
 ## 3. Energy / gas consumption (kWh + cost)
 
 **The data is available locally and decoded.** It is NOT in the reply metrics

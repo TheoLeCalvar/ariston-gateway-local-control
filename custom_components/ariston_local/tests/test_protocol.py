@@ -193,6 +193,19 @@ class TProg(unittest.TestCase):
     def test_empty_body_is_none(self):
         self.assertIsNone(tprog.decode_reply_body_hex(""))
 
+    def test_day_range_label(self):
+        self.assertEqual(tprog.day_range_label([1, 2, 3, 4, 5]), "Mon–Fri")
+        self.assertEqual(tprog.day_range_label([7, 6]), "Sat–Sun")
+        self.assertEqual(tprog.day_range_label([5]), "Fri")
+        self.assertEqual(tprog.day_range_label([1, 3]), "Mon, Wed")
+
+    def test_describe_profiles_is_legible(self):
+        p = tprog.decode_reply_body_hex(self.ID1)
+        self.assertEqual(
+            tprog.describe_profiles(p["profiles"], step=p["slot_minutes"]),
+            ["Sat–Sun: 07:00–23:00",
+             "Mon–Fri: 06:30–08:30, 17:30–23:30"])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from . import entities
-from .const import DOMAIN
+from .const import DOMAIN, TPROG_SCAN_INTERVAL
 from .gateway import AristonGateway
 
 _LOGGER = logging.getLogger(__name__)
@@ -66,10 +66,12 @@ class AristonOverrideCoordinator(DataUpdateCoordinator):
 class AristonTProgCoordinator(DataUpdateCoordinator):
     """Polls the heating time programs (Func/TProg). Data is {id: program|None}.
 
-    Schedules change rarely, so this runs on a slow interval."""
+    The boiler owns the schedule; this poll is how an edit made on the thermostat
+    itself gets reflected in HA (and how a write is confirmed to have landed)."""
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry,
-                 gateway: AristonGateway, prog_ids=(1, 7), scan_interval: int = 3600):
+                 gateway: AristonGateway, prog_ids=(1, 7),
+                 scan_interval: int = TPROG_SCAN_INTERVAL):
         super().__init__(
             hass, _LOGGER, name=f"{DOMAIN}_tprog",
             update_interval=timedelta(seconds=scan_interval))

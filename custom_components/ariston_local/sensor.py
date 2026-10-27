@@ -15,7 +15,7 @@ from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from . import entities, menu, energy
+from . import entities, menu, energy, tprog
 from .const import DOMAIN, MANUFACTURER
 from .entity import AristonEntity
 
@@ -133,6 +133,10 @@ class AristonTProgSensor(CoordinatorEntity, SensorEntity):
             "comfort": prog["comfort"],
             "eco": prog["eco"],
             "slot_minutes": prog["slot_minutes"],
+            # legible one-line-per-day-group summary, e.g.
+            # "Mon–Fri: 06:30–08:30, 17:30–23:30"
+            "schedule": tprog.describe_profiles(
+                prog["profiles"], step=prog["slot_minutes"]),
             # one entry per day-group: which weekdays (1=Mon..7=Sun) and the
             # comfort windows (as [start, end] HH:MM) that apply to them
             "profiles": [

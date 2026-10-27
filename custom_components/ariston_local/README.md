@@ -54,11 +54,13 @@ catalog in [`entities.py`](entities.py):
 - **Binary sensors** — burner/flame (`running`), holiday mode (with an `until`
   attribute), and per-zone "override active" with `target_temperature` and
   `until` attributes.
-- **Time program** (diagnostic) — one read-only sensor per schedule (`Func/TProg`
-  id 1 and 7); state is the comfort/eco pair, and the decoded day profiles
-  (comfort windows as `HH:MM` ranges) are attributes. This mirrors what's on the
-  boiler; to *change* a schedule use the `set_time_program` service (confirmed on
-  hardware).
+- **Time program** (diagnostic) — one sensor per schedule (`Func/TProg` id 1 and
+  7); state is the comfort/eco pair. A legible `schedule` attribute lists each
+  day-group (e.g. `Mon–Fri: 06:30–08:30, 17:30–23:30`); `profiles` keeps the
+  structured form. The boiler owns the schedule and runs it even if HA is down —
+  this is a reflection of it, polled every 5 min so a thermostat-side edit shows
+  up here. To *change* it, use the `set_time_program` service (read-modify-write,
+  confirmed on hardware) or the weekly-grid **Lovelace card** in [`lovelace/`](../../lovelace/).
 
 ## Services
 
@@ -91,6 +93,10 @@ python3 -I custom_components/ariston_local/tests/test_protocol.py
 ```
 
 ## Status
+
+Version 0.10.0 — local-first weekly schedule: faster `Func/TProg` poll (5 min), a
+legible `schedule` attribute, read-back verify on writes, and a weekly-grid
+Lovelace card in [`lovelace/`](../../lovelace/). Single "Wi-Fi signal" sensor.
 
 Version 0.9.0 — adds native holiday/absence mode (Func/SpecF) services + a Holiday binary sensor, plus a water-pressure sensor, on top of 0.8.x burner/Wi-Fi sensors.
 
