@@ -132,6 +132,19 @@ class EbusParams(unittest.TestCase):
         self.assertEqual(ebus_params.apply_scale(452, "x10"), 45.2)
         self.assertEqual(ebus_params.apply_scale(3, "enum"), 3)
 
+    def test_build_name_roundtrip(self):
+        name = ebus_params.build_name("6810", flag=0x00, zone=0x01)
+        self.assertEqual(name, "106800FE01")
+        self.assertEqual(ebus_params.parse_id(name)["ebus_id"], "6810")
+        # every seeded register round-trips through build_name -> parse_id
+        for eid in ebus_params.REGISTERS:
+            self.assertEqual(
+                ebus_params.parse_id(ebus_params.build_name(eid))["ebus_id"], eid)
+
+    def test_iter_ebus_ids(self):
+        self.assertEqual(list(ebus_params.iter_ebus_ids("6810", "6812")),
+                         ["6810", "6811", "6812"])
+
     def test_enrich(self):
         decoded = {"metrics": {
             "106800FE01": {"type": "INT32", "value": 452},

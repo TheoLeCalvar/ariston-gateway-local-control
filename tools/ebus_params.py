@@ -53,6 +53,24 @@ def ebus_id(raw_bytes):
     return f"{raw_bytes[1]:02x}{raw_bytes[0]:02x}"
 
 
+def build_name(ebus_id_str, flag=0x00, zone=0x00, src=0xFE):
+    """Inverse of parse_id: build the 5-byte hex metric name for a register.
+
+    >>> build_name("6810", flag=0x00, zone=0x01)
+    '106800FE01'
+    """
+    e = bytes.fromhex(f"{int(ebus_id_str, 16):04x}")  # 2 bytes, high then low
+    raw = bytes([e[1], e[0], flag & 0xFF, src & 0xFF, zone & 0xFF])
+    return raw.hex().upper()
+
+
+def iter_ebus_ids(start, end, step=1):
+    """Yield 4-hex eBUS IDs over an inclusive integer range (hex-friendly)."""
+    for v in range(int(start) if isinstance(start, int) else int(start, 16),
+                    (int(end) if isinstance(end, int) else int(end, 16)) + 1, step):
+        yield f"{v:04x}"
+
+
 def parse_id(name):
     """Parse a 5-byte hex metric name into its eBUS fields, or return None."""
     if not isinstance(name, str) or not HEXID_RE.match(name):

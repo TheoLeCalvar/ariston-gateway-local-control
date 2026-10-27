@@ -74,6 +74,35 @@ The enrich step adds an `ebus` block to each recognized hex metric, including a
            "unit": "C", "scaled_value": 45.2}}}}
 ```
 
+## Active register sweep (Mode A)
+
+Once the gateway is on your **local broker** (Mode A, docs/03), you can probe the
+device directly instead of waiting for the app to read something. `tools/sweep_
+registers.py` sends `GET`s across a set of registers, collects the replies, and
+annotates the ones it recognizes. It is GET-only, rate-limited, and **dry-run
+until you pass `--send`**.
+
+The catch: we know the hex metric-name layout but not how a `GET` *request* is
+shaped on this device — the resource path and/or request metrics. So first
+capture one real `GET` with the MITM proxy and read off its format, then tell the
+sweeper with `--resource` / `--req-metric` (templates accept `{hexname}`,
+`{ebus_id}`, `{reg_le}`, `{zone}`, `{flag}`):
+
+```bash
+# 1. preview the requests (sends nothing) and sanity-check the shape
+tools/sweep_registers.py --known --resource '{hexname}'
+
+# 2. once confirmed against a real GET, probe for real
+tools/sweep_registers.py --known --cafile broker/server.crt \
+    --resource '{hexname}' --send --out sweep.jsonl
+
+# probe a numeric range (e.g. around the known temperature block)
+tools/sweep_registers.py --range 6800 6a00 --cafile broker/server.crt --send
+```
+
+Each answered register prints its decoded value with the eBUS hint; unknown
+registers that answer are new discoveries to add to the map below.
+
 ## Extending the map
 
 `tools/ebus_registers.json` is keyed by the community eBUS ID (the byte-swapped

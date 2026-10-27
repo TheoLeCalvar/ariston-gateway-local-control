@@ -32,7 +32,6 @@ import sys
 import json
 import uuid
 import time
-import shlex
 import argparse
 import subprocess
 
@@ -55,63 +54,89 @@ def topic(account, client, app, verb, resource=""):
 
 
 def _tls_args(args):
-    out = []
-    if args.cafile:
-        out += ["--cafile", args.cafile, "--insecure"]
-    return out
+    return _tls_list(getattr(args, "cafile", None))
 
 
-def request(args, verb, resource, metrics):
+def _tls_list(cafile):
+    return ["--cafile", cafile, "--insecure"] if cafile else []
+
+
+def send_request(verb, resource, metrics, *, host, port, account, client, app,
+                 cafile=None, timeout=10, settle=0.3, dry_run=False):
+    """Send one Kura request and return the decoded reply as a dict.
+
+    Reusable by other tools (e.g. the register sweeper). Returns one of:
+      {"request.id","resource","reply_topic","reply": {...decoded...}}
+      {"request.id","resource","reply": None, "note": "..."}   (timed out)
+      {"dry_run": True, "resource","req_topic","reply_topic","payload_hex"}
+
+    Raises ValueError for a refused target and RuntimeError on publish failure.
+    """
     if "DEPLOY-V2" in f"{verb}/{resource}".upper():
-        sys.exit("refusing to target the DEPLOY-V2 firmware channel")
+        raise ValueError("refusing to target the DEPLOY-V2 firmware channel")
 
     req_id = uuid.uuid4().hex[:16]
     requester = f"local-{uuid.uuid4().hex[:8]}"
-    reply_topic = topic(args.account, requester, args.app, "REPLY", req_id)
-    req_topic = topic(args.account, args.client, args.app, verb, resource)
+    reply_topic = topic(account, requester, app, "REPLY", req_id)
+    req_topic = topic(account, client, app, verb, resource)
 
     payload = dict(metrics)
     payload.setdefault("request.id", req_id)
     payload.setdefault("requester.client.id", requester)
     data = kura_encode.encode_payload(payload)
 
-    tls = _tls_args(args)
-    sub_cmd = ["mosquitto_sub", "-h", args.host, "-p", str(args.port), *tls,
-               "-t", reply_topic, "-F", "%t | %x", "-C", "1", "-W", str(args.timeout)]
-    pub_cmd = ["mosquitto_pub", "-h", args.host, "-p", str(args.port), *tls,
-               "-t", req_topic, "-s"]
+    if dry_run:
+        return {"dry_run": True, "resource": f"{verb}/{resource}",
+                "req_topic": req_topic, "reply_topic": reply_topic,
+                "payload_hex": data.hex()}
 
-    if args.dry_run:
-        print("# would subscribe:", shlex.join(sub_cmd))
-        print("# would publish to:", req_topic)
-        print("# payload hex:", data.hex())
-        return 0
+    tls = _tls_list(cafile)
+    sub_cmd = ["mosquitto_sub", "-h", host, "-p", str(port), *tls,
+               "-t", reply_topic, "-F", "%t | %x", "-C", "1", "-W", str(timeout)]
+    pub_cmd = ["mosquitto_pub", "-h", host, "-p", str(port), *tls, "-t", req_topic, "-s"]
 
     # start the reply listener first so we don't miss a fast answer
     sub = subprocess.Popen(sub_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    time.sleep(0.3)
+    time.sleep(settle)
     pub = subprocess.run(pub_cmd, input=data, stderr=subprocess.PIPE)
     if pub.returncode != 0:
         sub.kill()
-        sys.exit(f"publish failed: {pub.stderr.decode().strip()}")
+        raise RuntimeError(f"publish failed: {pub.stderr.decode().strip()}")
 
     try:
-        out, err = sub.communicate(timeout=args.timeout + 2)
+        out, _ = sub.communicate(timeout=timeout + 2)
     except subprocess.TimeoutExpired:
         sub.kill()
-        out, err = sub.communicate()
+        out, _ = sub.communicate()
 
+    result = {"request.id": req_id, "resource": f"{verb}/{resource}"}
     line = out.decode(errors="replace").strip()
     if not line:
-        print(json.dumps({"request.id": req_id, "resource": f"{verb}/{resource}",
-                          "reply": None, "note": "no reply within timeout"}))
-        return 1
-
+        result["reply"] = None
+        result["note"] = "no reply within timeout"
+        return result
     rtopic, _, hexstr = line.partition(" | ")
-    decoded = kura_decode.decode_payload(bytes.fromhex(hexstr.strip()))
-    print(json.dumps({"request.id": req_id, "resource": f"{verb}/{resource}",
-                      "reply_topic": rtopic, "reply": decoded}, ensure_ascii=False))
-    return 0
+    result["reply_topic"] = rtopic
+    result["reply"] = kura_decode.decode_payload(bytes.fromhex(hexstr.strip()))
+    return result
+
+
+def request(args, verb, resource, metrics):
+    try:
+        result = send_request(verb, resource, metrics,
+                              host=args.host, port=args.port, account=args.account,
+                              client=args.client, app=args.app, cafile=args.cafile,
+                              timeout=args.timeout, dry_run=args.dry_run)
+    except (ValueError, RuntimeError) as e:
+        sys.exit(str(e))
+
+    if result.get("dry_run"):
+        print("# would publish to:", result["req_topic"])
+        print("# would read reply:", result["reply_topic"])
+        print("# payload hex:", result["payload_hex"])
+        return 0
+    print(json.dumps(result, ensure_ascii=False))
+    return 0 if result.get("reply") is not None else 1
 
 
 def _confirm(verb, resource, metrics, assume_yes):
