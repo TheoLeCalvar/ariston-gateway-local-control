@@ -14,6 +14,7 @@ import menu  # noqa: E402
 import entities  # noqa: E402
 import energy  # noqa: E402
 import override  # noqa: E402
+import tprog  # noqa: E402
 
 
 class Kura(unittest.TestCase):
@@ -119,6 +120,34 @@ class Override(unittest.TestCase):
         info = override.parse_der_body(body)
         self.assertFalse(info["enabled"])
         self.assertIsNone(info["temp"])
+
+
+class TProg(unittest.TestCase):
+    # captured Func/TProg reply bodies (docs/05)
+    ID1 = ("0a450801100f1a100a0207061204081c10011204085c10001a1f0a050102030405"
+           "1204081a10011204082210001204084610011204085e100020b901289b01"
+           "3000380040004800")
+    ID7 = ("0a710807100f1a0f0a01071204082010011204085810001a1e0a0401020304"
+           "1204081810011204082010001204084010011204085810001a1b0a0105"
+           "12040818100112040820100012040 83c10011204085c10001a0f0a0106"
+           "1204081c10011204085e100020b90128aa013000380040004800").replace(" ", "")
+
+    def test_id1_decodes_to_known_schedule(self):
+        p = tprog.decode_reply_body_hex(self.ID1)
+        self.assertEqual(p["id"], 1)
+        self.assertEqual(p["slot_minutes"], 15)
+        self.assertEqual((p["comfort"], p["eco"]), (18.5, 15.5))
+        # second profile is the user-confirmed weekday schedule
+        self.assertEqual(p["profiles"][1],
+                         [["06:30", "08:30"], ["17:30", "23:30"]])
+
+    def test_id7_profiles(self):
+        p = tprog.decode_reply_body_hex(self.ID7)
+        self.assertEqual(p["id"], 7)
+        self.assertEqual(p["profiles"][0], [["08:00", "22:00"]])
+
+    def test_empty_body_is_none(self):
+        self.assertIsNone(tprog.decode_reply_body_hex(""))
 
 
 if __name__ == "__main__":

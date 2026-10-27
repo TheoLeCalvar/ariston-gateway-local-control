@@ -17,4 +17,8 @@ DEFAULT_SCAN_INTERVAL = 60  # seconds
 # duration, use the ariston_local.set_override service.
 DEFAULT_CLIMATE_HOLD_HOURS = 3
 
+# Time-program ids observed on the wire (Func/TProg). 1 = zone 1 heating program
+# (weekday + weekend profiles), 7 = a second program. Read-only.
+TPROG_IDS = (1, 7)
+
 MANUFACTURER = "Ariston"

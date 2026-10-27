@@ -53,6 +53,10 @@ catalog in [`entities.py`](entities.py):
   energy screen (see [docs/06](../../docs/06-roadmap.md)).
 - **Binary sensors** — per-zone "override active", with `target_temperature` and
   `until` attributes.
+- **Time program** (diagnostic) — one read-only sensor per schedule (`Func/TProg`
+  id 1 and 7); state is the comfort/eco pair, and the decoded day profiles
+  (comfort windows as `HH:MM` ranges) are attributes. Read-only — writing the
+  schedule isn't implemented yet (needs a capture of a schedule edit).
 
 ## Services
 
@@ -80,6 +84,8 @@ python3 -I custom_components/ariston_local/tests/test_protocol.py
 ```
 
 ## Status
+
+Version 0.6.0 — adds read-only time-program (Func/TProg) diagnostic sensors.
 
 Version 0.5.0 — adds a per-zone `climate` entity (zone 1) on top of 0.4.0's live
 temperature sensors and confirmed enum labels. Current temp + active setpoint come

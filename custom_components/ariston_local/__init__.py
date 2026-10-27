@@ -19,11 +19,13 @@ from .const import (
     CONF_SCAN_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    TPROG_IDS,
 )
 from .coordinator import (
     AristonCoordinator,
     AristonOverrideCoordinator,
     AristonStatsCoordinator,
+    AristonTProgCoordinator,
 )
 from .gateway import AristonGateway
 from .services import async_register_services, async_unregister_services
@@ -55,8 +57,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     overrides = AristonOverrideCoordinator(hass, entry, gateway)
     await overrides.async_config_entry_first_refresh()
 
+    tprog = AristonTProgCoordinator(hass, entry, gateway, TPROG_IDS)
+    await tprog.async_config_entry_first_refresh()
+
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
-        "coordinator": coordinator, "stats": stats, "override": overrides}
+        "coordinator": coordinator, "stats": stats, "override": overrides,
+        "tprog": tprog}
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     async_register_services(hass)
     entry.async_on_unload(entry.add_update_listener(_async_reload))

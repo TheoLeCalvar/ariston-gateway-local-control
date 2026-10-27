@@ -14,7 +14,7 @@ import uuid
 
 import paho.mqtt.client as mqtt
 
-from . import kura, menu, energy, override
+from . import kura, menu, energy, override, tprog
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -151,6 +151,12 @@ class AristonGateway:
         typ_str = ",".join(str(t) for t in typs)
         reply = self._request("GET", "Stat/cWh", {"Typ": ("STRING", typ_str)}, timeout)
         return energy.decode_reply_body_hex(reply.get("body", ""))
+
+    def read_time_program(self, prog_id, timeout=8) -> dict | None:
+        """Read a heating time program (weekly schedule) via Func/TProg."""
+        reply = self._request(
+            "GET", "Func/TProg", {"Id": ("STRING", str(prog_id))}, timeout)
+        return tprog.decode_reply_body_hex(reply.get("body", ""))
 
     # ----------------------------------------------------------------- override
     def read_override(self, zone=1, timeout=8) -> dict | None:

@@ -63,6 +63,29 @@ class AristonOverrideCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"error reading overrides: {err}") from err
 
 
+class AristonTProgCoordinator(DataUpdateCoordinator):
+    """Polls the heating time programs (Func/TProg). Data is {id: program|None}.
+
+    Schedules change rarely, so this runs on a slow interval."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry,
+                 gateway: AristonGateway, prog_ids=(1, 7), scan_interval: int = 3600):
+        super().__init__(
+            hass, _LOGGER, name=f"{DOMAIN}_tprog",
+            update_interval=timedelta(seconds=scan_interval))
+        self.entry = entry
+        self.gateway = gateway
+        self.prog_ids = prog_ids
+
+    async def _async_update_data(self) -> dict:
+        def _read_all():
+            return {i: self.gateway.read_time_program(i) for i in self.prog_ids}
+        try:
+            return await self.hass.async_add_executor_job(_read_all)
+        except Exception as err:  # noqa: BLE001
+            raise UpdateFailed(f"error reading time programs: {err}") from err
+
+
 class AristonStatsCoordinator(DataUpdateCoordinator):
     """Polls energy stats (Stat/cWh) on a slow interval; data is {(typ, idx): [Wh]}."""
 

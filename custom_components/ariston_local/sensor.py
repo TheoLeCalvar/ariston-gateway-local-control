@@ -11,7 +11,7 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfEnergy
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -43,8 +43,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
     store = hass.data[DOMAIN][entry.entry_id]
     coordinator = store["coordinator"]
     stats = store["stats"]
+    tprog = store["tprog"]
     ents = [AristonSensor(coordinator, spec) for spec in entities.SENSORS]
     ents += [AristonEnergySensor(stats, entry, spec) for spec in ENERGY]
+    ents += [AristonTProgSensor(tprog, entry, pid) for pid in tprog.prog_ids]
     add_entities(ents)
 
 
@@ -91,3 +93,46 @@ class AristonEnergySensor(CoordinatorEntity, SensorEntity):
         data = self.coordinator.data or {}
         series = data.get((self._spec.typ, self._spec.idx))
         return None if series is None else energy.kwh(series)
+
+
+class AristonTProgSensor(CoordinatorEntity, SensorEntity):
+    """Read-only view of one heating time program (weekly schedule).
+
+    State is the comfort/eco pair; the decoded day profiles are attributes."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:calendar-clock"
+
+    def __init__(self, tprog_coordinator, entry: ConfigEntry, prog_id: int):
+        super().__init__(tprog_coordinator)
+        self._prog_id = prog_id
+        mac = entry.unique_id or entry.data.get("mac", "unknown")
+        self._attr_unique_id = f"{mac}_tprog_{prog_id}"
+        self._attr_name = f"Time program {prog_id}"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, mac)}, manufacturer=MANUFACTURER,
+            name=f"Ariston gateway {mac}")
+
+    def _program(self):
+        return (self.coordinator.data or {}).get(self._prog_id)
+
+    @property
+    def native_value(self):
+        prog = self._program()
+        if not prog:
+            return None
+        return f"comfort {prog['comfort']}°C / eco {prog['eco']}°C"
+
+    @property
+    def extra_state_attributes(self):
+        prog = self._program()
+        if not prog:
+            return None
+        return {
+            "comfort": prog["comfort"],
+            "eco": prog["eco"],
+            "slot_minutes": prog["slot_minutes"],
+            # list of day-profiles, each a list of [start, end] comfort windows
+            "profiles": prog["profiles"],
+        }

@@ -143,6 +143,26 @@ measurements (×10, read via `T_<menu>`):
 `climate` entity needs; the override's effect being visible on `T_4.3.1` confirms
 the two are the live view of the same zone.
 
+## Time program (`Func/TProg`) — read decoded
+
+The weekly heating schedule. `GET Func/TProg` with metric `Id` (STRING) returns
+the program in the body (field 5001). Observed ids: `1` (zone 1 heating —
+weekday + weekend profiles, confirmed by the owner) and `7`. Structure:
+
+```
+program { 1:id  2:slot_minutes  3:profile{ 1:{} 2:{1:slot,2:state} … } …  4:comfort*10  5:eco*10 }
+```
+
+`slot_minutes` is 15, and a transition `{slot, state}` is `slot × 15 min` →
+time-of-day with `state` 1=comfort, 0=eco. Decoded sample (id 1, comfort 18.5 /
+eco 15.5): profile A = comfort 07:00–23:00; profile B = 06:30–08:30 + 17:30–23:30.
+
+`tprog.decode_tprog_body()` folds this into comfort windows; the HA integration
+exposes each program as a read-only diagnostic sensor. **Writing is not
+implemented** — only reads are captured, so the PUT body shape and the
+day→profile mapping (the empty `profile.1`) are unconfirmed. Capture one schedule
+edit in the app to resolve both before adding a write path.
+
 ## Other resources seen
 
 Besides `Menu/Par`, the app uses: `Func/TProg` (time program, takes `Id`),
