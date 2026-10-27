@@ -20,7 +20,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
 )
-from .coordinator import AristonCoordinator
+from .coordinator import AristonCoordinator, AristonStatsCoordinator
 from .gateway import AristonGateway
 
 _LOGGER = logging.getLogger(__name__)
@@ -43,7 +43,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = AristonCoordinator(hass, entry, gateway, scan)
     await coordinator.async_config_entry_first_refresh()
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+    stats = AristonStatsCoordinator(hass, entry, gateway)
+    await stats.async_config_entry_first_refresh()
+
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        "coordinator": coordinator, "stats": stats}
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_reload))
     return True
@@ -52,8 +56,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
-        coordinator: AristonCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
-        await hass.async_add_executor_job(coordinator.gateway.disconnect)
+        store = hass.data[DOMAIN].pop(entry.entry_id)
+        await hass.async_add_executor_job(store["coordinator"].gateway.disconnect)
     return unloaded
 
 

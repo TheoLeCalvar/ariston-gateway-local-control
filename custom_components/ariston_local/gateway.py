@@ -14,7 +14,7 @@ import uuid
 
 import paho.mqtt.client as mqtt
 
-from . import kura, menu
+from . import kura, menu, energy
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -138,3 +138,9 @@ class AristonGateway:
         reply = self._request("PUT", "Menu/Par", {code: ("INT32", int(raw))}, timeout)
         rc = (reply.get("metrics") or {}).get("response.code")
         return rc.get("value") if isinstance(rc, dict) else rc
+
+    def read_stats(self, typs=(energy.TYP_HEATING, energy.TYP_DHW), timeout=8) -> dict:
+        """Read energy stats via Stat/cWh. Returns {(typ, idx): [Wh values]}."""
+        typ_str = ",".join(str(t) for t in typs)
+        reply = self._request("GET", "Stat/cWh", {"Typ": ("STRING", typ_str)}, timeout)
+        return energy.decode_reply_body_hex(reply.get("body", ""))

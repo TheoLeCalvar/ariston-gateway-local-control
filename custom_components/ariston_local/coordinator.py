@@ -40,3 +40,21 @@ class AristonCoordinator(DataUpdateCoordinator):
         if rc not in (None, 200):
             _LOGGER.warning("write %s=%s returned response.code=%s", code, raw, rc)
         await self.async_request_refresh()
+
+
+class AristonStatsCoordinator(DataUpdateCoordinator):
+    """Polls energy stats (Stat/cWh) on a slow interval; data is {(typ, idx): [Wh]}."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry,
+                 gateway: AristonGateway, scan_interval: int = 600):
+        super().__init__(
+            hass, _LOGGER, name=f"{DOMAIN}_stats",
+            update_interval=timedelta(seconds=scan_interval))
+        self.entry = entry
+        self.gateway = gateway
+
+    async def _async_update_data(self) -> dict:
+        try:
+            return await self.hass.async_add_executor_job(self.gateway.read_stats)
+        except Exception as err:  # noqa: BLE001
+            raise UpdateFailed(f"error reading stats: {err}") from err

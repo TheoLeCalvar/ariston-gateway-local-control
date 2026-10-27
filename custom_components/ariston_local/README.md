@@ -38,6 +38,11 @@ catalog in [`entities.py`](entities.py):
   other options use the observed raw values — relabel in `entities.py` once mapped.
 - **Switches** — anti-legionella, internet time, internet weather.
 - **Sensors** — Wi-Fi signal strength, anti-legionella frequency.
+- **Energy sensors** — heating and DHW gas energy (kWh), this month and trailing
+  year, from the `Stat/cWh` channel. `device_class=energy` / `state_class=
+  total_increasing`, so they plug straight into the **HA Energy dashboard** (cost
+  is left to the dashboard's tariff config). Mapping confirmed against the app's
+  energy screen (see [docs/06](../../docs/06-roadmap.md)).
 
 Add more by mapping the code in `menu_params.json` and adding a spec to
 `entities.py` — no other code changes needed.
@@ -60,5 +65,6 @@ python3 -I custom_components/ariston_local/tests/test_protocol.py
 
 ## Status
 
-First version (0.1.0). Not yet a `climate` entity — that needs a confirmed
-current-temperature source per zone; the setpoints are exposed as numbers for now.
+Version 0.2.0 — adds local energy sensors (heating/DHW kWh) for the HA Energy
+dashboard. Not yet a `climate` entity — that needs a confirmed current-temperature
+source per zone; the setpoints are exposed as numbers for now.

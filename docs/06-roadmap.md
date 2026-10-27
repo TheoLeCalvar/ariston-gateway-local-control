@@ -90,25 +90,31 @@ Typ=20 idx=4 [monthly]  [0,694,2722,3877,4025,2705,258,30,0,...]
 Typ=21 idx=4 [monthly]  [197,219,272,288,230,297,120,266,211,127,50,58,127]
 ```
 
-Strong hypothesis: **Typ=6 = central-heating energy in Wh** (the winter-peaked
-series sums to a plausible ~2649 kWh/yr). Typ 9/20/21 are likely DHW energy, gas
-input, and burner starts/hours in some order — **unconfirmed**. (This REM4 is an
-OpenTherm gateway, so any "gas" figure is the boiler's own estimate.)
+**Confirmed against the app's energy screen** (category GAZ, split Chauffage / Eau
+chaude sanitaire):
 
-**Still needed — one correlation, not a new capture:** read the app's energy
-screen and match its displayed categories + numbers to the decoded series, to pin
-each `Typ`, its unit, and what `idx` periods are.
+| Typ | quantity | unit | check |
+|---|---|---|---|
+| **6**  | **Heating** (chauffage) | Wh | `idx=2` (this month) sums to **4100** = app's Oct **4.1 kWh** ✓ |
+| **9**  | **DHW** (eau chaude sanitaire) | Wh | `idx=4` ≈ **456 kWh** ≈ app annual DHW ✓ |
+| 20 | heating burner runtime | min? | ≈ Typ6 ÷ 188 (≈ Wh/min at modulated power) — hypothesis |
+| 21 | DHW burner runtime | min? | ≈ Typ9 ÷ 188 — hypothesis |
 
-**Implement (once Typ semantics are known):**
-- `gateway.read_stats(typs)` (GET `Stat/cWh`, `Typ` list), decode the body with the
-  ported stat decoder, polled on a **slow** interval (e.g. hourly),
-- the arrays are per-period buckets, not a running counter. Expose, per quantity:
-  "this month" (current monthly bucket) and "this year" (sum of the monthly
-  series) as **sensor**s. For the **HA Energy dashboard** (which wants a
-  monotonic `total_increasing`), expose the year-to-date cumulative sum with a
-  `last_reset` at the year boundary, or let a `utility_meter` helper accumulate.
+Periods: **idx=1** hourly (today), **idx=2** daily (this month), **idx=4** monthly
+(trailing ~13 months). Values are gas energy in **Wh**.
+
+**Implemented** (`custom_components/ariston_local/`):
+- `energy.py`: ported Stat/cWh body decoder → `{(typ, idx): [Wh]}`.
+- `gateway.read_stats()` (GET `Stat/cWh`, `Typ=6,9`) + a slow `AristonStatsCoordinator`.
+- 4 energy **sensors** (kWh, `device_class=energy`, `state_class=total_increasing`):
+  heating/DHW this month (sum of daily idx=2) and trailing year (sum of idx=4) —
+  these feed the **HA Energy dashboard**.
 - **cost** stays in HA: the Energy dashboard applies the tariff; the integration
-  provides kWh only (tariff-agnostic).
+  provides kWh only (tariff-agnostic). The app's own € toggle confirms it's just a
+  price multiplier.
+
+Remaining: confirm the Typ 20/21 runtime hypothesis, and verify the `total_
+increasing` reset behaviour at month/year boundaries against a long run.
 
 ---
 

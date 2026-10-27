@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import kura  # noqa: E402
 import menu  # noqa: E402
 import entities  # noqa: E402
+import energy  # noqa: E402
 
 
 class Kura(unittest.TestCase):
@@ -52,6 +53,17 @@ class Entities(unittest.TestCase):
         # every spec's menu is mapped in menu_params.json
         for m in entities.all_menus():
             self.assertIn(m, menu.PARAMS, f"{m} missing from menu_params.json")
+
+
+class Stat(unittest.TestCase):
+    def test_decode_body(self):
+        entry = bytes.fromhex("0804" "1006" "1a04" "0064c801")  # idx4 typ6 [0,100,200]
+        body = bytes([0x0a, len(entry)]) + entry
+        series = energy.decode_stat_body(body)
+        self.assertEqual(series, {(6, 4): [0, 100, 200]})
+
+    def test_kwh(self):
+        self.assertEqual(energy.kwh([0, 124652, 487552]), 612.204)
 
 
 if __name__ == "__main__":
