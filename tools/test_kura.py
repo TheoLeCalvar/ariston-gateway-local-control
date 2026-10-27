@@ -17,6 +17,7 @@ import kura_decode
 import analyze_capture
 import ebus_params
 import sweep_registers
+import menu_params
 
 
 class RoundTrip(unittest.TestCase):
@@ -184,6 +185,36 @@ class Sweeper(unittest.TestCase):
     def test_register_mode_still_works(self):
         t = sweep_registers.build_targets(self._args(ids=["6810"]))
         self.assertEqual(t[0]["resource"], "106800FE01")
+
+
+class MenuParams(unittest.TestCase):
+    def test_parse_variants(self):
+        self.assertEqual(menu_params.parse_code("U_6.16.0"),
+                         {"code": "U_6.16.0", "variant": "", "kind": "user", "menu": "6.16.0"})
+        p = menu_params.parse_code("C_T_8.4.0")
+        self.assertEqual((p["variant"], p["kind"], p["menu"]), ("C", "technical", "8.4.0"))
+        self.assertIsNone(menu_params.parse_code("P1"))
+        self.assertIsNone(menu_params.parse_code("response.code"))
+
+    def test_scaling_matches_webpage(self):
+        # values captured from the device vs the installer menu screenshot
+        cases = {"U_6.3.0.0": (500, 50.0), "U_6.3.1.0.0": (185, 18.5),
+                 "U_6.9.0": (450, 45.0), "U_6.9.5.1": (28800, 480.0)}
+        for code, (raw, want) in cases.items():
+            obj = menu_params._enrich_obj({"metrics": {code: {"value": raw}}})
+            self.assertEqual(obj["metrics"][code]["menu_param"]["scaled_value"], want)
+
+    def test_enum_and_sentinel(self):
+        obj = menu_params._enrich_obj({"metrics": {
+            "U_3": {"value": 1}, "U_6.16.0": {"value": 1}, "U_8.3.0": {"value": 32767}}})
+        self.assertEqual(obj["metrics"]["U_3"]["menu_param"]["enum_label"], "Hiver")
+        self.assertEqual(obj["metrics"]["U_6.16.0"]["menu_param"]["enum_label"], "Marche")
+        self.assertEqual(obj["metrics"]["U_8.3.0"]["menu_param"]["enum_label"], "N/A")
+
+    def test_batch_metrics(self):
+        batches = list(menu_params.batch_metrics([f"U_{i}" for i in range(20)]))
+        self.assertEqual([len(b) for b in batches], [16, 4])
+        self.assertEqual(batches[0]["P1"], ("STRING", "U_0"))
 
 
 if __name__ == "__main__":

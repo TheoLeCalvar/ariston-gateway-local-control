@@ -15,8 +15,9 @@ cloud round-trip.
 - ✅ Tests: round-trip codec + analyzer + eBUS-parser unit tests (`tools/test_kura.py`, stdlib only).
 - ✅ Decoded the hex metric-name structure as **BridgeNet-over-eBUS register IDs** (little-endian register + `0xFE` broadcast + zone), confirmed against community registers (`6810` flow, `6910` return, `c04b` status). See [docs/04](docs/04-ebus-parameters.md).
 - ⬜ Build the command dictionary (`GET`/`PUT`/`EXEC` resources) by capturing the official app via the MITM proxy (use `tools/analyze_capture.py` to roll up the log).
-- ✅ Captured a real `GET`: reads are by **named resource** (`.../GET/Func/TProg` with an `Id` metric), and each reply bundles many hex register metrics. `tools/sweep_registers.py` now GETs a list of resources.
-- ⬜ Capture the full set of GET resource names (drive the app with `analyze_capture.py --follow`), then sweep them in Mode A.
+- ✅ Found the real **config channel**: the `Menu/Par` resource reads/writes settings by installer-menu code (`U_6.3.1.0.0` = menu 6.3.1.0.0). Mapped the codes to the web installer menu and confirmed ×10 temperature scaling + enums. See [docs/05](docs/05-menu-parameters.md).
+- ✅ Tooling: `read_menu.py` reads menu params in Mode A; `menu_params.py`/`.json` decode and annotate them.
+- ⬜ Capture a `PUT` (one setpoint change) to confirm the **write** format, then drive the device.
 - ⬜ Confirm per-register scaling/enums on this model and expand `tools/ebus_registers.json` from captures.
 - ⬜ Drive the device from a local client / HA integration.
 
@@ -37,6 +38,7 @@ docs/
   02-mqtt-protocol.md        topics, connection, Kura payload format + examples
   03-local-broker-and-bridge.md  the three interception modes + safety
   04-ebus-parameters.md      decoding the hex metric names into eBUS registers
+  05-menu-parameters.md      the Menu/Par config channel (U_/T_ codes ↔ app menu)
 broker/
   make-cert.sh               generate the self-signed server cert
   mosquitto.conf             Mode A: fully local broker
@@ -46,6 +48,9 @@ tools/
   kura_encode.py             stdlib Kura payload encoder (inverse of the decoder)
   kura_client.py             Mode A: send GET/PUT/EXEC, read the matching REPLY
   sweep_registers.py         Mode A: actively GET named resources (GET-only)
+  read_menu.py               Mode A: read installer-menu params via Menu/Par
+  menu_params.py             decode U_/T_ menu codes + enrich (map in .json)
+  menu_params.json           menu number → label/unit/scale/enum (from capture)
   analyze_capture.py         roll an mqtt_mitm log up into a command dictionary
   ebus_params.py             decode hex metric names into eBUS registers + enrich
   ebus_registers.json        extensible map of known eBUS registers → meaning
