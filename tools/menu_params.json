@@ -1,11 +1,11 @@
 {
   "_comment": "Ariston installer-menu parameters, keyed by menu number (as shown in the web installer menu, e.g. 6.16.0). The gateway reads/writes these via the Menu/Par resource using codes U_<menu> (user value), T_<menu> (technical/sensor read), and a C_ variant that returns the same value. 'scale' x10 means the raw integer is tenths (185 = 18.5 C) -- confirmed on-device by matching the web installer. 32767 (0x7FFF) is the not-available sentinel. 'fr' is the French menu label from the installer. 'values' (when present) lists the raw values observed to be settable for an enum parameter; enum labels are only filled where confirmed against the app.",
   "parameters": {
-    "0.0": {"label": "Zone 1 mode",            "fr": "Zone 1 (Programmé/Manuel)",      "scale": "enum", "enum": {"3": "Chauffage programmé"}, "confidence": "observed-on-device"},
-    "0.1": {"label": "Zone 2 mode",            "fr": "Zone 2 (Programmé/Manuel)",      "scale": "enum", "enum": {"3": "Chauffage programmé"}, "confidence": "observed-on-device"},
-    "0.2": {"label": "Zone 3 mode",            "fr": "Zone 3 (Programmé/Manuel)",      "scale": "enum", "enum": {"3": "Chauffage programmé"}, "confidence": "observed-on-device"},
-    "0.6": {"label": "DHW position",           "fr": "Position sanitaire",             "scale": "enum", "enum": {"0": "Désactivée"}, "confidence": "observed-on-device"},
-    "3":   {"label": "Summer/Winter/OFF",      "fr": "Eté / Hiver / OFF",              "scale": "enum", "enum": {"1": "Hiver"}, "values": [0, 1, 2, 5], "confidence": "observed-on-device"},
+    "0.0": {"label": "Zone 1 mode",            "fr": "Zone 1 (Programmé/Manuel)",      "scale": "enum", "enum": {"2": "Manuel", "3": "Chauffage programmé"}, "values": [2, 3], "confidence": "observed-on-device"},
+    "0.1": {"label": "Zone 2 mode",            "fr": "Zone 2 (Programmé/Manuel)",      "scale": "enum", "enum": {"2": "Manuel", "3": "Chauffage programmé"}, "values": [2, 3], "confidence": "observed-on-device"},
+    "0.2": {"label": "Zone 3 mode",            "fr": "Zone 3 (Programmé/Manuel)",      "scale": "enum", "enum": {"2": "Manuel", "3": "Chauffage programmé"}, "values": [2, 3], "confidence": "observed-on-device"},
+    "0.6": {"label": "DHW position",           "fr": "Position sanitaire",             "scale": "enum", "enum": {"0": "Désactivé", "1": "Temporisé", "2": "Toujours active"}, "values": [0, 1, 2], "confidence": "observed-on-device"},
+    "3":   {"label": "Summer/Winter/OFF",      "fr": "Eté / Hiver / OFF",              "scale": "enum", "enum": {"0": "Été", "1": "Hiver", "2": "Chauffage seul", "5": "Arrêt"}, "values": [0, 1, 2, 5], "confidence": "observed-on-device"},
 
     "6.3.0.0": {"label": "Flow setpoint zone 1", "fr": "Température départ zone 1", "unit": "C", "scale": "x10", "confidence": "observed-on-device"},
     "6.3.0.2": {"label": "Flow setpoint zone 2", "fr": "Température départ zone 2", "unit": "C", "scale": "x10", "confidence": "observed-on-device"},
@@ -23,7 +23,7 @@
     "6.9.0":     {"label": "DHW comfort setpoint",      "fr": "Réglage température confort ECS", "unit": "C", "scale": "x10", "confidence": "observed-on-device"},
     "6.9.1.0.0": {"label": "DHW program comfort setpoint", "fr": "Programmation ECS (confort)", "unit": "C", "scale": "x10", "confidence": "observed-on-device"},
     "6.9.1.0.1": {"label": "DHW program reduced setpoint", "fr": "Programmation ECS (réduit)",  "unit": "C", "scale": "x10", "confidence": "observed-on-device"},
-    "6.9.2":     {"label": "COMFORT function",          "fr": "Fonction COMFORT",            "scale": "enum", "enum": {"0": "Désactivée"}, "confidence": "observed-on-device"},
+    "6.9.2":     {"label": "COMFORT function",          "fr": "Fonction COMFORT",            "scale": "enum", "enum": {"0": "Désactivée", "1": "Temporisé", "2": "Toujours active"}, "values": [0, 1, 2], "confidence": "observed-on-device"},
     "6.9.5.0":   {"label": "Anti-legionella function",  "fr": "Fonction anti-bactérie",      "scale": "enum", "enum": {"0": "Arrêt", "1": "Marche"}, "confidence": "observed-on-device"},
     "6.9.5.1":   {"label": "Anti-legionella frequency", "fr": "Fréquence fonction anti-bactérie", "unit": "h", "scale": "div60", "confidence": "observed-on-device"},
 
@@ -32,7 +32,11 @@
     "6.16.6": {"label": "Internet time",       "fr": "Heure internet",                    "scale": "enum", "enum": {"0": "Arrêt", "1": "Marche"}, "confidence": "observed-on-device"},
     "6.16.7": {"label": "Internet weather",    "fr": "Météo par internet",                "scale": "enum", "enum": {"0": "Arrêt", "1": "Marche"}, "confidence": "observed-on-device"},
 
-    "8.3.0": {"label": "Technical read 8.3.0 (temperature?)", "unit": "C", "scale": "x10", "confidence": "guess"},
-    "8.4.0": {"label": "Technical read 8.4.0 (live temperature?)", "unit": "C", "scale": "x10", "confidence": "guess"}
+    "4.3.0": {"label": "Zone 1 room temperature",   "fr": "Température ambiante zone 1", "unit": "C", "scale": "x10", "confidence": "observed-on-device"},
+    "4.3.1": {"label": "Zone 1 active setpoint",     "fr": "Consigne active zone 1",     "unit": "C", "scale": "x10", "confidence": "observed-on-device"},
+
+    "8.3.0": {"label": "DHW temperature/setpoint (≈50°C)", "unit": "C", "scale": "x10", "confidence": "guess"},
+    "8.3.5": {"label": "DHW tank temperature (no sensor / N/A)", "unit": "C", "scale": "x10", "confidence": "observed-on-device"},
+    "8.4.0": {"label": "Boiler flow temperature",    "fr": "Température départ chaudière", "unit": "C", "scale": "x10", "confidence": "observed-on-device"}
   }
 }

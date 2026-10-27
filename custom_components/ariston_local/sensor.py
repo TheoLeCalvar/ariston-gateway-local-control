@@ -50,8 +50,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
 
 class AristonSensor(AristonEntity, SensorEntity):
     def __init__(self, coordinator, spec: entities.SensorSpec):
-        super().__init__(coordinator, spec.menu, spec.name)
+        super().__init__(coordinator, spec.menu, spec.name, spec.prefix)
         self._attr_native_unit_of_measurement = spec.unit
+        if spec.device_class:
+            self._attr_device_class = SensorDeviceClass(spec.device_class)
+            self._attr_state_class = SensorStateClass.MEASUREMENT
 
     @property
     def native_value(self):
@@ -59,6 +62,9 @@ class AristonSensor(AristonEntity, SensorEntity):
         if raw is None:
             return None
         value, enum_label = menu.decode(self._menu, raw)
+        # Numeric sensors (temperature, ...) must never report the "N/A" label.
+        if getattr(self, "_attr_device_class", None) is not None:
+            return value
         return enum_label if enum_label is not None else value
 
 

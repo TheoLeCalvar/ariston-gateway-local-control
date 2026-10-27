@@ -38,6 +38,8 @@ class SensorSpec:
     menu: str
     name: str
     unit: str | None = None
+    prefix: str = "U_"  # T_ for technical/live reads, U_ for user values
+    device_class: str | None = None
 
 
 # Writable setpoints (°C, x10 scaling handled via menu.py)
@@ -54,12 +56,11 @@ NUMBERS = [
     NumberSpec("6.9.0", "DHW comfort setpoint", 35, 65, 1),
 ]
 
-# Mode selector. Only value 1 = Winter is label-confirmed; the rest are the
-# observed settable values (see docs/05) with placeholder labels -- relabel once
-# you confirm each against the app.
+# Mode selector. All labels confirmed byte-for-byte from a capture (see docs/05):
+# the app wrote 0=Été, 1=Hiver, 2=chauffage seul, 5=arrêt.
 SELECTS = [
     SelectSpec("3", "Season mode", {
-        "Off (0)": 0, "Winter": 1, "Mode 2": 2, "Mode 5": 5}),
+        "Summer": 0, "Winter": 1, "Heating only": 2, "Off": 5}),
 ]
 
 # On/off toggles (NOT 6.16.0 connectivity -- disabling it can cut the gateway off)
@@ -69,10 +70,18 @@ SWITCHES = [
     SwitchSpec("6.16.7", "Internet weather"),
 ]
 
-# Read-only values
+# Read-only values. The T_ (technical) reads are live measurements confirmed from
+# a capture (see docs/05): T_4.3.0 drifts ~20°C (room temp), T_4.3.1 tracked the
+# 18° override, T_8.4.0 moves 40-42°C (boiler flow).
 SENSORS = [
     SensorSpec("6.16.5", "Wi-Fi signal strength"),
     SensorSpec("6.9.5.1", "Anti-legionella frequency", "h"),
+    SensorSpec("4.3.0", "Zone 1 temperature", "°C", prefix="T_",
+               device_class="temperature"),
+    SensorSpec("4.3.1", "Zone 1 active setpoint", "°C", prefix="T_",
+               device_class="temperature"),
+    SensorSpec("8.4.0", "Boiler flow temperature", "°C", prefix="T_",
+               device_class="temperature"),
 ]
 
 
@@ -84,5 +93,10 @@ def all_menus():
     return sorted(menus)
 
 
-def all_codes(prefix="U_"):
-    return [f"{prefix}{m}" for m in all_menus()]
+def all_codes():
+    """Every device code the coordinator must read, with the right prefix:
+    U_ for writable/user params, each sensor's own prefix (T_ for live reads)."""
+    codes = {f"U_{spec.menu}" for group in (NUMBERS, SELECTS, SWITCHES)
+             for spec in group}
+    codes |= {f"{spec.prefix}{spec.menu}" for spec in SENSORS}
+    return sorted(codes)

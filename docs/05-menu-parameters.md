@@ -114,6 +114,35 @@ a parameter's known settable set. The raw path is also available directly:
 Treat the first real write with care and know how to revert it from the boiler
 panel.
 
+## Confirmed enum maps (from the installer capture)
+
+Cycling each option in the installer portal and correlating the PUT value with
+the `REPLY` id gives these byte-for-byte mappings:
+
+| code | raw → label |
+|---|---|
+| `U_3` (Été/Hiver/OFF) | 0 = Été, 1 = Hiver, 2 = Chauffage seul, 5 = Arrêt |
+| `U_0.0/0.1/0.2` (zone mode) | 2 = Manuel, 3 = Chauffage programmé |
+| `U_0.6` (position sanitaire) | 0 = Désactivé, 1 = Temporisé, 2 = Toujours active |
+| `U_6.9.2` (fonction COMFORT) | 0 = Désactivée, 1 = Temporisé, 2 = Toujours active |
+
+## Live technical reads (`T_`)
+
+The same capture, read while idle and during an override, pins down several live
+measurements (×10, read via `T_<menu>`):
+
+| code | observed | reading |
+|---|---|---|
+| `T_4.3.0` | 20.1–20.3 °C, drifting | **zone 1 room temperature** |
+| `T_4.3.1` | 15.5 → **18.0** when the 18° override fired | **zone 1 active setpoint** |
+| `T_8.4.0` | 39.9–42.2 °C, moving | **boiler flow temperature** |
+| `T_8.3.0` | 50.0 °C (steady) | DHW temperature/setpoint (unconfirmed) |
+| `T_8.3.5` | 32767 | DHW tank temp — no sensor (combi), N/A sentinel |
+
+`T_4.3.0` + `T_4.3.1` are the room-temperature and current-target pair a per-zone
+`climate` entity needs; the override's effect being visible on `T_4.3.1` confirms
+the two are the live view of the same zone.
+
 ## Other resources seen
 
 Besides `Menu/Par`, the app uses: `Func/TProg` (time program, takes `Id`),

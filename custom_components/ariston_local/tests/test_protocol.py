@@ -46,6 +46,23 @@ class Menu(unittest.TestCase):
         self.assertEqual(batches[0]["P1"], ("STRING", "U_0"))
 
 
+class EnumMappings(unittest.TestCase):
+    """Labels confirmed byte-for-byte from the installer capture (docs/05)."""
+
+    def test_season_mode(self):
+        self.assertEqual(menu.decode("3", 0), (0, "Été"))
+        self.assertEqual(menu.decode("3", 2), (2, "Chauffage seul"))
+        self.assertEqual(menu.decode("3", 5), (5, "Arrêt"))
+
+    def test_dhw_position(self):
+        self.assertEqual(menu.decode("0.6", 0), (0, "Désactivé"))
+        self.assertEqual(menu.decode("0.6", 2), (2, "Toujours active"))
+
+    def test_zone_mode_and_comfort(self):
+        self.assertEqual(menu.decode("0.2", 2), (2, "Manuel"))
+        self.assertEqual(menu.decode("6.9.2", 1), (1, "Temporisé"))
+
+
 class Entities(unittest.TestCase):
     def test_all_codes_cover_specs(self):
         codes = entities.all_codes()
@@ -54,6 +71,13 @@ class Entities(unittest.TestCase):
         # every spec's menu is mapped in menu_params.json
         for m in entities.all_menus():
             self.assertIn(m, menu.PARAMS, f"{m} missing from menu_params.json")
+
+    def test_live_temperature_reads_use_T_prefix(self):
+        codes = entities.all_codes()
+        for code in ("T_4.3.0", "T_4.3.1", "T_8.4.0"):
+            self.assertIn(code, codes)
+        temps = [s for s in entities.SENSORS if s.prefix == "T_"]
+        self.assertTrue(all(s.device_class == "temperature" for s in temps))
 
 
 class Stat(unittest.TestCase):

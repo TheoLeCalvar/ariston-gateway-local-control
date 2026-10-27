@@ -37,7 +37,9 @@ catalog in [`entities.py`](entities.py):
 - **Select** — Season mode (Eté/Hiver/OFF). Only *Winter* is label-confirmed; the
   other options use the observed raw values — relabel in `entities.py` once mapped.
 - **Switches** — anti-legionella, internet time, internet weather.
-- **Sensors** — Wi-Fi signal strength, anti-legionella frequency.
+- **Sensors** — Wi-Fi signal strength, anti-legionella frequency, and live
+  temperatures (zone 1 room temp, zone 1 active setpoint, boiler flow temp) read
+  from the `T_` technical channel (`device_class=temperature`).
 - **Energy sensors** — heating and DHW gas energy (kWh), this month and trailing
   year, from the `Stat/cWh` channel. `device_class=energy` / `state_class=
   total_increasing`, so they plug straight into the **HA Energy dashboard** (cost
@@ -73,7 +75,8 @@ python3 -I custom_components/ariston_local/tests/test_protocol.py
 
 ## Status
 
-Version 0.3.0 — adds temporary override (`Func/Der`) services + per-zone override
-binary sensors, on top of 0.2.0's local energy sensors. Not yet a `climate` entity
-— that needs a confirmed current-temperature source per zone; the setpoints are
+Version 0.4.0 — adds live temperature sensors (zone room temp, active setpoint,
+boiler flow) and confirms the season/zone/DHW/comfort enum labels from a capture,
+on top of 0.3.0's override services. The zone room-temp + active-setpoint pair is
+the groundwork for a per-zone `climate` entity (next step); setpoints remain
 exposed as numbers for now.

@@ -14,12 +14,13 @@ class AristonEntity(CoordinatorEntity[AristonCoordinator]):
 
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator: AristonCoordinator, menu_num: str, name: str):
+    def __init__(self, coordinator: AristonCoordinator, menu_num: str, name: str,
+                 prefix: str = "U_"):
         super().__init__(coordinator)
         self._menu = menu_num
-        self._code = menu.code_for(menu_num)
+        self._code = menu.code_for(menu_num, prefix)
         mac = coordinator.entry.unique_id or coordinator.entry.data.get("mac", "unknown")
-        self._attr_unique_id = f"{mac}_{menu_num}"
+        self._attr_unique_id = f"{mac}_{self._code}"
         self._attr_name = name
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, mac)},
