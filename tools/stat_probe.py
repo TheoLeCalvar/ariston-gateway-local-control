@@ -63,16 +63,20 @@ def main():
     ap.add_argument("--client", default=kura_client.DEFAULTS["client"], help="device MAC / client id")
     ap.add_argument("--app", default=kura_client.DEFAULTS["app"])
     ap.add_argument("--cafile", default=None, help="broker cert (adds --insecure)")
-    ap.add_argument("--timeout", type=int, default=20,
-                    help="per-Typ reply wait; this gateway's Stat/cWh reply is "
-                         "slow (~10-15s), and absent codes wait the whole timeout")
+    ap.add_argument("--timeout", type=int, default=15, help="per-Typ reply wait")
+    ap.add_argument("--retries", type=int, default=3,
+                    help="retries when a reply comes back empty (stats are occasional)")
+    ap.add_argument("--debug", action="store_true",
+                    help="print each reply's status/body for diagnosis")
     args = ap.parse_args()
 
     base = _parse_typs(args.base)
     typs = _parse_typs(args.typs)
     found: dict = {}  # (typ, idx) -> values
 
-    def _query(typ_list):
+    def _query_once(typ_list):
+        """Return (status, series). status: 'none' (no MQTT reply), 'empty'
+        (reply but no series), 'ok' (series present)."""
         typ_str = ",".join(str(t) for t in typ_list)
         res = kura_client.send_request(
             "get", "Stat/cWh", {"Typ": ("STRING", typ_str)},
@@ -81,39 +85,57 @@ def main():
             timeout=args.timeout)
         reply = res.get("reply")
         if not reply:
-            return None
-        return [s for s in stat_decode.decode_stat_body(bytes.fromhex(reply.get("body", "")))
-                if s["typ"] is not None and s["idx"] is not None]
+            if args.debug:
+                print(f"    [{typ_str}] no MQTT reply ({res.get('note', '')})", file=sys.stderr)
+            return "none", []
+        body = reply.get("body", "")
+        series = [s for s in stat_decode.decode_stat_body(bytes.fromhex(body))
+                  if s["typ"] is not None and s["idx"] is not None]
+        if args.debug:
+            rc = (reply.get("metrics") or {}).get("response.code")
+            print(f"    [{typ_str}] rc={rc} body={len(body)//2}B series={len(series)}"
+                  f" typs={sorted({s['typ'] for s in series})}", file=sys.stderr)
+        return ("ok" if series else "empty"), series
 
-    # Self-test: the base alone must reply, or nothing below will work. Stat/cWh
-    # replies can be slow/occasional, so retry a few times before giving up.
-    probe0 = None
-    for attempt in range(4):
-        probe0 = _query(base)
-        if probe0:
-            break
-        print(f"  base {args.base}: no reply (try {attempt + 1}/4)", file=sys.stderr)
-        time.sleep(2)
-    if not probe0:
-        print(f"Base {base} never replied -- is HA mid-read? Stats are slow; "
-              f"try a longer --timeout, or confirm with: kura_client.py get "
-              f"Stat/cWh -m Typ:STRING={args.base}", file=sys.stderr)
+    def _query(typ_list):
+        """Retry while the gateway answers but with an empty body."""
+        for attempt in range(args.retries + 1):
+            status, series = _query_once(typ_list)
+            if status == "ok":
+                return status, series
+            if status == "none" and attempt == 0:
+                # a dropped reply (invalid Typ) won't become non-empty; one more
+                # try guards a genuine miss, then give up.
+                pass
+            time.sleep(2)
+        return status, series
+
+    # Self-test: the base alone must reply with series, or nothing below works.
+    base_set = set(base)
+    status, probe0 = _query(base)
+    if status != "ok":
+        print(f"Base {args.base} returned '{status}' (not series). The gateway "
+              f"answers Stat/cWh only intermittently; re-run, or raise --retries. "
+              f"Confirm manually: kura_client.py get Stat/cWh -m Typ:STRING={args.base}",
+              file=sys.stderr)
         return 1
     for s in probe0:
         found[(s["typ"], s["idx"])] = s["values"]
-    base_set = set(base)
     print(f"  base {args.base}: {len(probe0)} series ok", file=sys.stderr)
 
     for typ in typs:
         if typ in base_set:
             continue
         try:
-            got = _query(base + [typ])
+            status, got = _query(base + [typ])
         except Exception as err:  # noqa: BLE001
             print(f"  +Typ {typ}: request failed: {err}", file=sys.stderr)
             continue
-        if got is None:
-            print(f"  +Typ {typ}: - (invalid, reply dropped)", file=sys.stderr)
+        if status == "none":
+            print(f"  +Typ {typ}: dropped (Typ invalid)", file=sys.stderr)
+            continue
+        if status == "empty":
+            print(f"  +Typ {typ}: empty reply (inconclusive, re-probe)", file=sys.stderr)
             continue
         new = sorted({s["typ"] for s in got} - base_set)
         tag = f"NEW {new}" if new else "only base"
