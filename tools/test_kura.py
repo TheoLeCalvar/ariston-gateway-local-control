@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import kura_encode
 import kura_decode
 import analyze_capture
+import ebus_params
 
 
 class RoundTrip(unittest.TestCase):
@@ -105,6 +106,41 @@ class Analyzer(unittest.TestCase):
         self.assertIn("value", metrics)
         self.assertIn("900982FE00", metrics)
         self.assertEqual(topics["$EDC/ari/M/ar1/PUT/310/0/0"], 1)
+
+
+class EbusParams(unittest.TestCase):
+    def test_parse_known(self):
+        # the three IDs matched against community registers
+        p = ebus_params.parse_id("106800FE01")
+        self.assertEqual(p["ebus_id"], "6810")
+        self.assertEqual(p["register_le"], "1068")
+        self.assertEqual(p["zone"], 1)
+        self.assertTrue(p["is_broadcast"])
+        self.assertEqual(ebus_params.parse_id("4BC000FE01")["ebus_id"], "c04b")
+        self.assertEqual(ebus_params.parse_id("106900FE01")["ebus_id"], "6910")
+
+    def test_annotate(self):
+        info = ebus_params.annotate("106800FE01")
+        self.assertEqual(info["known"]["name"], "heating_flow_temp")
+        self.assertEqual(info["known"]["unit"], "C")
+
+    def test_not_an_id(self):
+        self.assertIsNone(ebus_params.parse_id("StatusCode"))
+        self.assertIsNone(ebus_params.annotate("N"))
+
+    def test_scale(self):
+        self.assertEqual(ebus_params.apply_scale(452, "x10"), 45.2)
+        self.assertEqual(ebus_params.apply_scale(3, "enum"), 3)
+
+    def test_enrich(self):
+        decoded = {"metrics": {
+            "106800FE01": {"type": "INT32", "value": 452},
+            "StatusCode": {"type": "INT32", "value": 1}}}
+        out = ebus_params._enrich_obj(decoded)
+        e = out["metrics"]["106800FE01"]["ebus"]
+        self.assertEqual(e["name"], "heating_flow_temp")
+        self.assertEqual(e["scaled_value"], 45.2)
+        self.assertNotIn("ebus", out["metrics"]["StatusCode"])
 
 
 if __name__ == "__main__":

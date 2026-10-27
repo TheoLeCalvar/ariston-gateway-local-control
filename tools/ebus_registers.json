@@ -1,0 +1,24 @@
+{
+  "_comment": "Seed map of Ariston BridgeNet eBUS registers, keyed by the community 'eBUS ID' (the byte-swap of the 2-byte register stored in the gateway's hex metric names). Scaling marked 'x10' means the raw integer is tenths (e.g. 450 = 45.0 C), which is the common BridgeNet convention but UNCONFIRMED on this device. Sourced from community reverse-engineering (see docs/04); extend it from your own GET/PUT captures.",
+  "registers": {
+    "6810": {"name": "heating_flow_temp",   "meaning": "Heating flow (outgoing CH) temperature",  "unit": "C",  "scale": "x10", "menu": "8.3.1", "confidence": "observed-on-device"},
+    "6910": {"name": "heating_return_temp", "meaning": "Heating return (incoming CH) temperature", "unit": "C",  "scale": "x10", "menu": "8.3.2", "confidence": "observed-on-device"},
+    "c04b": {"name": "boiler_status",        "meaning": "Boiler status",                            "unit": null, "scale": "enum", "menu": null,  "confidence": "observed-on-device"},
+    "c000": {"name": "pump_speed",           "meaning": "Pump speed level",                          "unit": null, "scale": null,  "menu": "8.2.3", "confidence": "community"},
+    "c300": {"name": "pump_modulation",      "meaning": "Pump modulation",                           "unit": "%",  "scale": null,  "menu": "8.2.7", "confidence": "community"},
+    "0001": {"name": "diverter_valve",       "meaning": "Diverter valve position (0=DHW, 1=heating)","unit": null, "scale": "enum", "menu": "8.2.4", "confidence": "community"},
+    "4013": {"name": "fan_rpm",              "meaning": "Fan speed",                                 "unit": "rpm","scale": "x100","menu": "8.2.2", "confidence": "community"},
+    "0445": {"name": "fan_state",            "meaning": "Fan status (0=off, 1=on)",                  "unit": null, "scale": "enum", "menu": "8.2.1", "confidence": "community"},
+    "6126": {"name": "dhw_temp",             "meaning": "DHW (hot water) temperature setting",       "unit": "C",  "scale": "x10", "menu": "2.0.0", "confidence": "community"},
+    "6147": {"name": "dhw_setpoint",         "meaning": "DHW set temperature",                       "unit": "C",  "scale": "x10", "menu": null,  "confidence": "community"},
+    "6047": {"name": "heating_setpoint",     "meaning": "Heating (CH) set temperature",              "unit": "C",  "scale": "x10", "menu": null,  "confidence": "community"},
+    "0081": {"name": "temp_range_z1",        "meaning": "Temperature range zone 1 (0=high, 1=low)",  "unit": null, "scale": "enum", "menu": "4.2.0", "confidence": "community"},
+    "0082": {"name": "temp_range_z2",        "meaning": "Temperature range zone 2 (0=high, 1=low)",  "unit": null, "scale": "enum", "menu": "5.2.0", "confidence": "community"},
+    "0120": {"name": "winter_mode",          "meaning": "Operating mode (winter)",                   "unit": null, "scale": "enum", "menu": null,  "confidence": "community"},
+    "0220": {"name": "dhw_mode",             "meaning": "DHW operating mode",                        "unit": null, "scale": "enum", "menu": null,  "confidence": "community"},
+    "0520": {"name": "auto_mode",            "meaning": "Auto operating mode",                       "unit": null, "scale": "enum", "menu": null,  "confidence": "community"},
+    "6271": {"name": "day_temp_z1",          "meaning": "Comfort/day setpoint zone 1",               "unit": "C",  "scale": "x10", "menu": null,  "confidence": "community"},
+    "6371": {"name": "night_temp_z1",        "meaning": "Reduced/night setpoint zone 1",             "unit": "C",  "scale": "x10", "menu": null,  "confidence": "community"},
+    "7118": {"name": "room_temp_z1",         "meaning": "Room temperature zone 1",                   "unit": "C",  "scale": "x10", "menu": null,  "confidence": "community"}
+  }
+}

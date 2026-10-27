@@ -12,9 +12,10 @@ cloud round-trip.
 - ✅ Confirmed the gateway **does not validate the broker TLS cert** → a local broker can take over the connection via a DNS override.
 - ✅ Mapped the MQTT topic namespace and decoded the **Kura/Kapua protobuf** payload format.
 - ✅ Tooling: stdlib payload **decoder + encoder**, capture analyzer, request/reply client, live monitor, transparent MITM proxy, bridge config.
-- ✅ Tests: round-trip codec + analyzer unit tests (`tools/test_kura.py`, stdlib only).
+- ✅ Tests: round-trip codec + analyzer + eBUS-parser unit tests (`tools/test_kura.py`, stdlib only).
+- ✅ Decoded the hex metric-name structure as **BridgeNet-over-eBUS register IDs** (little-endian register + `0xFE` broadcast + zone), confirmed against community registers (`6810` flow, `6910` return, `c04b` status). See [docs/04](docs/04-ebus-parameters.md).
 - ⬜ Build the command dictionary (`GET`/`PUT`/`EXEC` resources) by capturing the official app via the MITM proxy (use `tools/analyze_capture.py` to roll up the log).
-- ⬜ Map the hex-coded eBUS parameter IDs to meaningful quantities.
+- ⬜ Confirm per-register scaling/enums on this model and expand `tools/ebus_registers.json` from captures.
 - ⬜ Drive the device from a local client / HA integration.
 
 ## Device under test
@@ -33,6 +34,7 @@ docs/
   01-discovery.md            how we found the cloud-only MQTT architecture
   02-mqtt-protocol.md        topics, connection, Kura payload format + examples
   03-local-broker-and-bridge.md  the three interception modes + safety
+  04-ebus-parameters.md      decoding the hex metric names into eBUS registers
 broker/
   make-cert.sh               generate the self-signed server cert
   mosquitto.conf             Mode A: fully local broker
@@ -42,7 +44,9 @@ tools/
   kura_encode.py             stdlib Kura payload encoder (inverse of the decoder)
   kura_client.py             Mode A: send GET/PUT/EXEC, read the matching REPLY
   analyze_capture.py         roll an mqtt_mitm log up into a command dictionary
-  test_kura.py               stdlib unit tests for the codec + analyzer
+  ebus_params.py             decode hex metric names into eBUS registers + enrich
+  ebus_registers.json        extensible map of known eBUS registers → meaning
+  test_kura.py               stdlib unit tests for the codec, analyzer + eBUS parser
   live_monitor.sh            subscribe to all topics, print decoded JSON
   mqtt_mitm.py               Mode B: transparent TLS proxy, logs every packet
   resolve_real.sh            resolve the real cloud IP past a DNS override
