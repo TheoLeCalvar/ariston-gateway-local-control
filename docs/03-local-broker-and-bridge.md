@@ -28,6 +28,21 @@ nothing reaches the Ariston cloud (the app shows the device offline).
 cd broker && mosquitto -c mosquitto.conf -v
 ```
 
+Or **in Docker** (recommended for a permanent deployment — auto-restarts, logs to
+`docker logs`):
+
+```bash
+cd broker && ./make-cert.sh            # once, if server.crt/key don't exist yet
+docker compose up -d                   # uses mosquitto.docker.conf
+docker compose logs -f                 # watch it
+```
+
+The compose file runs mosquitto as your host user (so it can read `server.key`
+without changing its ownership); on a machine where you aren't UID 1000, start it
+with `PUID=$(id -u) PGID=$(id -g) docker compose up -d`. This container is
+independent of any other broker you run (e.g. zigbee2mqtt's) — see the note at
+the end of this file.
+
 Watch decoded telemetry live:
 
 ```bash
@@ -138,3 +153,29 @@ Prefer Mode B unless you specifically want mosquitto to own both links.
   you take it down, revert the override so the gateway reaches the real cloud.
 - `PUT` writes setpoints on a real boiler. Test reads (`GET`) before writes, and
   know how to revert a setting physically.
+
+---
+
+## Running alongside another MQTT broker (e.g. zigbee2mqtt)
+
+Fine — nothing collides, because the Ariston path never touches Home Assistant's
+built-in MQTT integration:
+
+- Home Assistant's **MQTT integration** (what zigbee2mqtt uses) connects to **one**
+  broker. You don't point it at a second one.
+- The **`ariston_local`** custom component brings its **own** MQTT client and
+  connects to whatever host/port you configure, independently.
+
+So zigbee2mqtt keeps its broker via the MQTT integration, and `ariston_local`
+connects to the Ariston broker on its own. Two options:
+
+1. **Dedicated Ariston broker** (the `broker/docker-compose.yml` above) — separate
+   container/port, isolated from your Zigbee traffic and the impersonation cert.
+2. **One broker, two listeners** — add a TLS `listener 8883` (with the Ariston
+   cert, `allow_anonymous true`, `ciphers DEFAULT@SECLEVEL=0`) to your existing
+   zigbee2mqtt mosquitto, keeping its plaintext 1883 for Zigbee. The gateway lands
+   on 8883 via the DNS override; `ariston_local` connects on 8883; zigbee2mqtt and
+   HA stay on 1883. No second container.
+
+Either way the two MQTT namespaces don't overlap (`$EDC/ari/...` vs
+zigbee2mqtt's `zigbee2mqtt/...`).

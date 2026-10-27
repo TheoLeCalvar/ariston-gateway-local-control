@@ -1,0 +1,27 @@
+# Dedicated local broker for the Ariston gateway (Mode A), containerised.
+#
+# Prerequisite: generate the cert once on the host, so server.crt / server.key
+# exist next to this file:
+#     ./make-cert.sh
+#
+# Then:  docker compose up -d        (logs: docker compose logs -f)
+#
+# The gateway reaches this on TLS 8883 once broker-ari.everyware-cloud.com is
+# pointed at this host (see ../docs/03). This broker is independent of any other
+# MQTT broker you run (e.g. zigbee2mqtt) — Home Assistant's ariston_local
+# component connects here with its own client.
+services:
+  ariston-broker:
+    image: eclipse-mosquitto:2.0.20
+    container_name: ariston-broker
+    restart: unless-stopped
+    # Run as the host user that owns server.key (default 1000:1000) so mosquitto
+    # can read the mounted key without changing its ownership. Override on another
+    # machine with:  PUID=$(id -u) PGID=$(id -g) docker compose up -d
+    user: "${PUID:-1000}:${PGID:-1000}"
+    ports:
+      - "8883:8883"
+    volumes:
+      - ./mosquitto.docker.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./server.crt:/mosquitto/config/server.crt:ro
+      - ./server.key:/mosquitto/config/server.key:ro

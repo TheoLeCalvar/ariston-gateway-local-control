@@ -37,14 +37,21 @@ broker needs the cert and the DNS name pointed at it.
    cd broker && ./make-cert.sh        # writes server.crt / server.key
    ```
 
-2. **Run Mosquitto** with the provided config:
+2. **Run Mosquitto.** In Docker (recommended for a permanent deployment — it
+   auto-restarts and logs to `docker logs`):
 
    ```bash
-   cd broker && mosquitto -c mosquitto.conf
+   cd broker && docker compose up -d        # uses mosquitto.docker.conf
+   docker compose logs -f                    # watch it
    ```
 
-   Keep it running as a service (systemd unit, container, etc.) for a permanent
-   deployment — not in a terminal you'll close.
+   On a host where you aren't UID 1000, start it with
+   `PUID=$(id -u) PGID=$(id -g) docker compose up -d` so mosquitto can read
+   `server.key`. Bare-metal alternative: `mosquitto -c mosquitto.conf`.
+
+   > Already running a broker for zigbee2mqtt? This one is separate and that's
+   > fine — or fold it into the existing broker as a second listener. See the note
+   > at the end of [docs/03](03-local-broker-and-bridge.md).
 
 3. **Redirect DNS** for `broker-ari.everyware-cloud.com` to the broker's IP, on the
    resolver the gateway uses (the LAN router/resolver, e.g. MikroTik
