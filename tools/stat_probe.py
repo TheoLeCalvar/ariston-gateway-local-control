@@ -54,7 +54,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--typs", default="1-40", help="Typ codes to sweep, e.g. '1-40' or '6,9,12,16'")
-    ap.add_argument("--base", default="6,9,20,21",
+    ap.add_argument("--base", default="6,9",
                     help="known-good Typs sent with every probe (the gateway needs them to reply)")
     ap.add_argument("--host", default=kura_client.DEFAULTS["host"])
     ap.add_argument("--port", default=kura_client.DEFAULTS["port"])
@@ -62,7 +62,7 @@ def main():
     ap.add_argument("--client", default=kura_client.DEFAULTS["client"], help="device MAC / client id")
     ap.add_argument("--app", default=kura_client.DEFAULTS["app"])
     ap.add_argument("--cafile", default=None, help="broker cert (adds --insecure)")
-    ap.add_argument("--timeout", type=int, default=6,
+    ap.add_argument("--timeout", type=int, default=10,
                     help="per-Typ reply wait (absent codes wait this out)")
     args = ap.parse_args()
 
@@ -83,11 +83,18 @@ def main():
         return [s for s in stat_decode.decode_stat_body(bytes.fromhex(reply.get("body", "")))
                 if s["typ"] is not None and s["idx"] is not None]
 
-    # Self-test: the base alone must reply, or nothing below will work.
-    probe0 = _query(base)
+    # Self-test: the base alone must reply, or nothing below will work. Stat/cWh
+    # replies can be slow/occasional, so retry a few times before giving up.
+    probe0 = None
+    for attempt in range(4):
+        probe0 = _query(base)
+        if probe0:
+            break
+        print(f"  base {args.base}: no reply (try {attempt + 1}/4)", file=sys.stderr)
     if not probe0:
-        print(f"Base {base} got no reply -- check the gateway/broker before sweeping.",
-              file=sys.stderr)
+        print(f"Base {base} never replied -- is HA mid-read? Stats are slow; "
+              f"try a longer --timeout, or confirm with: kura_client.py get "
+              f"Stat/cWh -m Typ:STRING={args.base}", file=sys.stderr)
         return 1
     for s in probe0:
         found[(s["typ"], s["idx"])] = s["values"]
