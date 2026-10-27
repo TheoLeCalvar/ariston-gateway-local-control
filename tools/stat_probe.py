@@ -104,28 +104,34 @@ def main():
     found: dict = {}  # (typ, idx) -> values
 
     def _query_once(typ_list):
-        """Return (status, series): 'none' (no reply), 'empty' (reply, no series),
-        'ok' (series present)."""
+        """Return (status, series). status: 'none' (no reply), 'invalid' (the
+        gateway answered rc=500 -- a Typ it doesn't have), 'empty' (rc=200 but no
+        series yet -- stats not ready), 'ok' (series present)."""
         typ_str = ",".join(str(t) for t in typ_list)
         reply = _kura_get_stat(typ_str, args)
         if not reply:
             if args.debug:
                 print(f"    [{typ_str}] no reply", file=sys.stderr)
             return "none", []
+        rc = (reply.get("metrics") or {}).get("response.code")
+        rc = rc.get("value") if isinstance(rc, dict) else rc
         body = reply.get("body", "")
         series = [s for s in stat_decode.decode_stat_body(bytes.fromhex(body))
                   if s["typ"] is not None and s["idx"] is not None] if body else []
         if args.debug:
-            rc = (reply.get("metrics") or {}).get("response.code")
             print(f"    [{typ_str}] rc={rc} body={len(body)//2}B series={len(series)}"
                   f" typs={sorted({s['typ'] for s in series})}", file=sys.stderr)
-        return ("ok" if series else "empty"), series
+        if series:
+            return "ok", series
+        if rc == 500:
+            return "invalid", []  # the gateway rejected a Typ it doesn't have
+        return "empty", []
 
     def _query(typ_list):
         status, series = "none", []
         for _ in range(args.retries + 1):
             status, series = _query_once(typ_list)
-            if status == "ok":
+            if status in ("ok", "invalid"):  # both are definitive, no retry
                 return status, series
             time.sleep(1.5)
         return status, series
@@ -144,11 +150,14 @@ def main():
         if typ in base_set:
             continue
         status, got = _query(base + [typ])
+        if status == "invalid":
+            print(f"  +Typ {typ}: absent (rc 500)", file=sys.stderr)
+            continue
         if status == "none":
-            print(f"  +Typ {typ}: dropped (Typ invalid)", file=sys.stderr)
+            print(f"  +Typ {typ}: no reply (inconclusive)", file=sys.stderr)
             continue
         if status == "empty":
-            print(f"  +Typ {typ}: empty (inconclusive)", file=sys.stderr)
+            print(f"  +Typ {typ}: empty rc 200 (inconclusive, re-probe)", file=sys.stderr)
             continue
         new = sorted({s["typ"] for s in got} - base_set)
         print(f"  +Typ {typ}: {len(got)} series  "
