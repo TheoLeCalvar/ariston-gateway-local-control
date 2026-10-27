@@ -43,9 +43,9 @@ catalog in [`entities.py`](entities.py):
 - **Select** — Season mode (Eté/Hiver/OFF). Only *Winter* is label-confirmed; the
   other options use the observed raw values — relabel in `entities.py` once mapped.
 - **Switches** — anti-legionella, internet time, internet weather.
-- **Sensors** — Wi-Fi signal strength, Wi-Fi link quality, anti-legionella
-  frequency, and live temperatures (zone 1 room temp, zone 1 active setpoint,
-  boiler flow temp) read from the `T_` technical channel.
+- **Sensors** — Wi-Fi signal, anti-legionella frequency, and live temperatures
+  (zone 1 room temp, zone 1 active setpoint, boiler flow temp) read from the `T_`
+  technical channel.
 - **Energy sensors** — heating and DHW gas energy (kWh), this month and trailing
   year, from the `Stat/cWh` channel. `device_class=energy` / `state_class=
   total_increasing`, so they plug straight into the **HA Energy dashboard** (cost
@@ -56,8 +56,9 @@ catalog in [`entities.py`](entities.py):
   `until` attributes.
 - **Time program** (diagnostic) — one read-only sensor per schedule (`Func/TProg`
   id 1 and 7); state is the comfort/eco pair, and the decoded day profiles
-  (comfort windows as `HH:MM` ranges) are attributes. Read-only — writing the
-  schedule isn't implemented yet (needs a capture of a schedule edit).
+  (comfort windows as `HH:MM` ranges) are attributes. This mirrors what's on the
+  boiler; to *change* a schedule use the `set_time_program` service (confirmed on
+  hardware).
 
 ## Services
 

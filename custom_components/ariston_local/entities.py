@@ -94,7 +94,6 @@ SWITCHES = [
 # a capture (see docs/05): T_4.3.0 drifts ~20°C (room temp), T_4.3.1 tracked the
 # 18° override, T_8.4.0 moves 40-42°C (boiler flow).
 SENSORS = [
-    SensorSpec("6.16.5", "Wi-Fi signal strength"),
     SensorSpec("6.9.5.1", "Anti-legionella frequency", "h"),
     SensorSpec("4.3.0", "Zone 1 temperature", "°C", prefix="T_",
                device_class="temperature"),
@@ -102,7 +101,7 @@ SENSORS = [
                device_class="temperature"),
     SensorSpec("8.4.0", "Boiler flow temperature", "°C", prefix="T_",
                device_class="temperature"),
-    SensorSpec("19.1.1", "Wi-Fi link quality", prefix="T_"),
+    SensorSpec("19.1.1", "Wi-Fi signal", prefix="T_"),
     SensorSpec("8.2.9", "Heating water pressure", "bar", prefix="T_",
                device_class="pressure"),
 ]
