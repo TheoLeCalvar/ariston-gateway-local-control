@@ -32,6 +32,10 @@
     "6.16.6": {"label": "Internet time",       "fr": "Heure internet",                    "scale": "enum", "enum": {"0": "Arrêt", "1": "Marche"}, "confidence": "observed-on-device"},
     "6.16.7": {"label": "Internet weather",    "fr": "Météo par internet",                "scale": "enum", "enum": {"0": "Arrêt", "1": "Marche"}, "confidence": "observed-on-device"},
 
+    "2.1.0": {"label": "Burner / flame",             "fr": "Flamme",                    "scale": "enum", "enum": {"0": "Off", "1": "On"}, "confidence": "observed-on-device"},
+    "4.0.2": {"label": "Heating flow setpoint",      "fr": "Température départ chauffage", "unit": "C", "scale": "x10", "confidence": "observed-on-device"},
+    "19.1.1": {"label": "Wi-Fi link quality",        "fr": "Qualité du lien Wi-Fi",      "scale": null, "confidence": "observed-on-device"},
+
     "4.3.0": {"label": "Zone 1 room temperature",   "fr": "Température ambiante zone 1", "unit": "C", "scale": "x10", "confidence": "observed-on-device"},
     "4.3.1": {"label": "Zone 1 active setpoint",     "fr": "Consigne active zone 1",     "unit": "C", "scale": "x10", "confidence": "observed-on-device"},
 

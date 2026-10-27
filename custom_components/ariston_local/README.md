@@ -43,16 +43,16 @@ catalog in [`entities.py`](entities.py):
 - **Select** — Season mode (Eté/Hiver/OFF). Only *Winter* is label-confirmed; the
   other options use the observed raw values — relabel in `entities.py` once mapped.
 - **Switches** — anti-legionella, internet time, internet weather.
-- **Sensors** — Wi-Fi signal strength, anti-legionella frequency, and live
-  temperatures (zone 1 room temp, zone 1 active setpoint, boiler flow temp) read
-  from the `T_` technical channel (`device_class=temperature`).
+- **Sensors** — Wi-Fi signal strength, Wi-Fi link quality, anti-legionella
+  frequency, and live temperatures (zone 1 room temp, zone 1 active setpoint,
+  boiler flow temp) read from the `T_` technical channel.
 - **Energy sensors** — heating and DHW gas energy (kWh), this month and trailing
   year, from the `Stat/cWh` channel. `device_class=energy` / `state_class=
   total_increasing`, so they plug straight into the **HA Energy dashboard** (cost
   is left to the dashboard's tariff config). Mapping confirmed against the app's
   energy screen (see [docs/06](../../docs/06-roadmap.md)).
-- **Binary sensors** — per-zone "override active", with `target_temperature` and
-  `until` attributes.
+- **Binary sensors** — burner/flame (`running`), and per-zone "override active"
+  with `target_temperature` and `until` attributes.
 - **Time program** (diagnostic) — one read-only sensor per schedule (`Func/TProg`
   id 1 and 7); state is the comfort/eco pair, and the decoded day profiles
   (comfort windows as `HH:MM` ranges) are attributes. Read-only — writing the
@@ -88,7 +88,7 @@ python3 -I custom_components/ariston_local/tests/test_protocol.py
 
 ## Status
 
-Version 0.7.0 — the time program is now writable via the `ariston_local.set_time_program` service (confirmed on hardware), on top of 0.6.x read-only sensors.
+Version 0.8.0 — adds a burner/flame binary sensor and Wi-Fi link-quality sensor (identified by app correlation), on top of 0.7.0 schedule writes.
 
 Version 0.5.0 — adds a per-zone `climate` entity (zone 1) on top of 0.4.0's live
 temperature sensors and confirmed enum labels. Current temp + active setpoint come

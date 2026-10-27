@@ -54,6 +54,14 @@ class SensorSpec:
     device_class: str | None = None
 
 
+@dataclass(frozen=True)
+class BinarySpec:
+    menu: str
+    name: str
+    prefix: str = "T_"
+    device_class: str | None = None
+
+
 # Writable setpoints (°C, x10 scaling handled via menu.py)
 NUMBERS = [
     NumberSpec("6.3.1.0.0", "Zone 1 comfort setpoint", 10, 30, 0.5),
@@ -94,6 +102,12 @@ SENSORS = [
                device_class="temperature"),
     SensorSpec("8.4.0", "Boiler flow temperature", "°C", prefix="T_",
                device_class="temperature"),
+    SensorSpec("19.1.1", "Wi-Fi link quality", prefix="T_"),
+]
+
+# Read-only on/off status (from the T_ technical channel), via the main poll.
+BINARY_SENSORS = [
+    BinarySpec("2.1.0", "Burner", prefix="T_", device_class="running"),
 ]
 
 
@@ -107,7 +121,7 @@ CLIMATES = [
 
 def all_menus():
     menus = set()
-    for group in (NUMBERS, SELECTS, SWITCHES, SENSORS):
+    for group in (NUMBERS, SELECTS, SWITCHES, SENSORS, BINARY_SENSORS):
         for spec in group:
             menus.add(spec.menu)
     for c in CLIMATES:
@@ -121,6 +135,7 @@ def all_codes():
     codes = {f"U_{spec.menu}" for group in (NUMBERS, SELECTS, SWITCHES)
              for spec in group}
     codes |= {f"{spec.prefix}{spec.menu}" for spec in SENSORS}
+    codes |= {f"{spec.prefix}{spec.menu}" for spec in BINARY_SENSORS}
     for c in CLIMATES:
         codes |= {f"T_{c.temp_menu}", f"T_{c.setpoint_menu}", f"U_{c.mode_menu}"}
     return sorted(codes)

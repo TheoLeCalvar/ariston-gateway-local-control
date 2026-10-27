@@ -143,13 +143,21 @@ measurements (×10, read via `T_<menu>`):
 `climate` entity needs; the override's effect being visible on `T_4.3.1` confirms
 the two are the live view of the same zone.
 
-### Unidentified technical reads (seen, not yet labelled)
+### More technical reads (identified by app correlation)
 
-A full app read-through surfaced these `T_` reads; all read-only, meanings not yet
-confirmed (raw values as captured): `T_2.1.0`=0, `T_2.2.8`=3, `T_2.5.7`=1,
-`T_2.5.8`=28800 (≈8 h), `T_4.0.2`=500, `T_4.2.3`=50, `T_4.3.4`=0, `T_4.8.0`=0,
-`T_8.2.9`=8–9, `T_19.1.1`=80, `T_19.1.6`=9. Logged here so they're not
-re-investigated blind; identify against the installer manual before exposing any.
+Opening specific app screens and correlating (and diffing a flame on/off capture)
+pinned these:
+
+- **`T_2.1.0`** = burner **flame** (0 off / 1 on) — confirmed by diffing a
+  flame-on vs flame-off status; exposed as a `running` binary sensor.
+- **`T_19.1.1`** = **Wi-Fi link quality** (raw 80); exposed as a sensor.
+- **`T_4.0.2`** = **heating flow setpoint** ("température départ chauffage"), ×10,
+  and **writable** — the app PUT `Menu/Par T_4.0.2=510` when set to 51 °C (note it
+  writes the `T_` code, not a `U_` one). Documented; not yet exposed as an entity.
+
+Still unidentified (read-only, raw as captured): `T_2.2.8`=3, `T_2.5.7`=0/1
+(writable flag), `T_2.5.8`=28800 (≈8 h), `T_4.2.3`=50, `T_4.3.4`=0, `T_4.8.0`=0,
+`T_8.2.9`=7–9 (varies), `T_19.1.6`=9.
 
 ## Time program (`Func/TProg`) — read decoded
 
@@ -188,3 +196,8 @@ Besides `Menu/Par`, the app uses: `Func/TProg` (time program, takes `Id`),
 `Func/Der` (takes `Z` = zone), `Func/SpecF` (special functions), and `Stat/cWh`
 (energy stats, takes `Typ`). These return their own metric bundles; map them the
 same way — capture, correlate, extend.
+
+Config/cloud resources also seen (not yet mapped into the integration):
+`Cnf/Tz` (PUT `TimeZ`=Europe/Paris, `Offset`=3600 — timezone), `Cnf/Date`
+(PUT `Leg`), and `weather/subscription` on the `ARICLOUD-V1` app (GET
+`RefreshTime`/`Forecast` — cloud weather, not useful locally).

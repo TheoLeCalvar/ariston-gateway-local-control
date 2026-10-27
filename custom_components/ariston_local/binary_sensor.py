@@ -3,21 +3,44 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.components.binary_sensor import (
+    BinarySensorDeviceClass,
+    BinarySensorEntity,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from . import entities
 from .const import DOMAIN, MANUFACTURER
+from .entity import AristonEntity
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
                             add_entities: AddEntitiesCallback) -> None:
     store = hass.data[DOMAIN][entry.entry_id]
-    coordinator = store["override"]
-    add_entities(AristonOverrideSensor(coordinator, entry, z) for z in coordinator.zones)
+    override = store["override"]
+    coordinator = store["coordinator"]
+    ents = [AristonOverrideSensor(override, entry, z) for z in override.zones]
+    ents += [AristonStatusBinarySensor(coordinator, spec)
+             for spec in entities.BINARY_SENSORS]
+    add_entities(ents)
+
+
+class AristonStatusBinarySensor(AristonEntity, BinarySensorEntity):
+    """On/off status from a T_ read on the main poll (e.g. burner flame)."""
+
+    def __init__(self, coordinator, spec: entities.BinarySpec):
+        super().__init__(coordinator, spec.menu, spec.name, spec.prefix)
+        if spec.device_class:
+            self._attr_device_class = BinarySensorDeviceClass(spec.device_class)
+
+    @property
+    def is_on(self):
+        raw = self._raw
+        return None if raw is None else bool(raw)
 
 
 class AristonOverrideSensor(CoordinatorEntity, BinarySensorEntity):

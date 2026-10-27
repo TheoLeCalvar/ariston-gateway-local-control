@@ -77,8 +77,9 @@ class Entities(unittest.TestCase):
         codes = entities.all_codes()
         for code in ("T_4.3.0", "T_4.3.1", "T_8.4.0"):
             self.assertIn(code, codes)
-        temps = [s for s in entities.SENSORS if s.prefix == "T_"]
-        self.assertTrue(all(s.device_class == "temperature" for s in temps))
+        temps = [s for s in entities.SENSORS if s.device_class == "temperature"]
+        self.assertTrue(all(s.prefix == "T_" for s in temps))
+        self.assertEqual({s.menu for s in temps}, {"4.3.0", "4.3.1", "8.4.0"})
 
     def test_climate_zone_codes_are_read(self):
         z1 = next(c for c in entities.CLIMATES if c.zone == 1)
