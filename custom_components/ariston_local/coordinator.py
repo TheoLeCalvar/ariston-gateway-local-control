@@ -19,13 +19,14 @@ class AristonCoordinator(DataUpdateCoordinator):
     """Polls all mapped parameter codes in batched Menu/Par reads."""
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry,
-                 gateway: AristonGateway, scan_interval: int):
+                 gateway: AristonGateway, scan_interval: int,
+                 active_zones=entities.ALL_ZONES):
         super().__init__(
             hass, _LOGGER, name=DOMAIN,
             update_interval=timedelta(seconds=scan_interval))
         self.entry = entry
         self.gateway = gateway
-        self._codes = entities.all_codes()
+        self._codes = entities.all_codes(active_zones)
 
     async def _async_update_data(self) -> dict:
         try:

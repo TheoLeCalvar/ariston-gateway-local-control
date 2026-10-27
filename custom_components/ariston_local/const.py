@@ -8,9 +8,15 @@ CONF_PORT = "port"
 CONF_MAC = "mac"
 CONF_CAFILE = "cafile"
 CONF_SCAN_INTERVAL = "scan_interval"
+CONF_ACTIVE_ZONES = "active_zones"
 
 DEFAULT_PORT = 8883
 DEFAULT_SCAN_INTERVAL = 60  # seconds
+
+# Which heating zones to expose. Zone 1 is always on (it carries the climate
+# entity); zones 2/3 are opt-out for single-zone systems. Default is all three
+# so an existing install keeps every entity until the user trims it in Options.
+DEFAULT_ACTIVE_ZONES = (1, 2, 3)
 
 # Setting a temperature from the climate card issues a timed hold (dérogation)
 # that the boiler auto-reverts; this is its default length. For a different

@@ -44,7 +44,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
     coordinator = store["coordinator"]
     stats = store["stats"]
     tprog = store["tprog"]
-    ents = [AristonSensor(coordinator, spec) for spec in entities.SENSORS]
+    active = store["active_zones"]
+    ents = [AristonSensor(coordinator, spec) for spec in entities.sensors(active)]
     ents += [AristonEnergySensor(stats, entry, spec) for spec in ENERGY]
     ents += [AristonTProgSensor(tprog, entry, pid) for pid in tprog.prog_ids]
     add_entities(ents)

@@ -81,6 +81,23 @@ class Entities(unittest.TestCase):
         self.assertTrue(all(s.prefix == "T_" for s in temps))
         self.assertEqual({s.menu for s in temps}, {"4.3.0", "4.3.1", "8.4.0"})
 
+    def test_active_zone_filtering(self):
+        # zone 1 only: zone 2/3 numbers and their codes drop out; DHW stays
+        one = entities.numbers([1])
+        menus = {s.menu for s in one}
+        self.assertIn("6.3.1.0.0", menus)   # zone 1 comfort
+        self.assertIn("6.9.0", menus)        # DHW (not zone-scoped)
+        self.assertNotIn("6.3.1.1.0", menus)  # zone 2 comfort
+        self.assertNotIn("6.3.1.2.0", menus)  # zone 3 comfort
+        codes = entities.all_codes([1])
+        self.assertNotIn("U_6.3.1.1.0", codes)
+        self.assertNotIn("U_6.3.0.4", codes)  # zone 3 flow
+        # climate follows zones too
+        self.assertEqual([c.zone for c in entities.climates([1])], [1])
+        self.assertEqual(entities.climates([2]), [])
+        # default keeps everything
+        self.assertEqual(entities.numbers(), entities.NUMBERS)
+
     def test_climate_zone_codes_are_read(self):
         z1 = next(c for c in entities.CLIMATES if c.zone == 1)
         self.assertEqual((z1.temp_menu, z1.setpoint_menu, z1.mode_menu),

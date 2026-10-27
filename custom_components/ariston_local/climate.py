@@ -39,8 +39,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
     store = hass.data[DOMAIN][entry.entry_id]
     coordinator = store["coordinator"]
     override = store.get("override")
-    add_entities(
-        AristonClimate(coordinator, override, spec) for spec in entities.CLIMATES)
+    active = store["active_zones"]
+    add_entities(AristonClimate(coordinator, override, spec)
+                 for spec in entities.climates(active))
 
 
 class AristonClimate(CoordinatorEntity, ClimateEntity):

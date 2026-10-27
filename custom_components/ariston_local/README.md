@@ -25,7 +25,10 @@ gateway and reads the replies.
    - **CA/cert file** — optional; the broker cert. Left blank, TLS is used without
      verification (the gateway itself doesn't verify either).
 
-Polling interval is configurable under the integration's **Options** (default 60 s).
+Under the integration's **Options** you can set the polling interval (default
+60 s) and pick which heating **zones** to expose. Zone 1 is always on; zones 2
+and 3 are on by default — turn them off on a single-zone system and their
+setpoint/flow entities (and polling) disappear.
 
 ## Entities
 
@@ -93,6 +96,9 @@ python3 -I custom_components/ariston_local/tests/test_protocol.py
 ```
 
 ## Status
+
+Version 0.11.0 — an **active-zones** option (hide zones 2/3 on a single-zone
+system; they stop being polled and shown).
 
 Version 0.10.0 — local-first weekly schedule: faster `Func/TProg` poll (5 min), a
 legible `schedule` attribute, read-back verify on writes, and a weekly-grid

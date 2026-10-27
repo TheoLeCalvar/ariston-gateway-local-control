@@ -14,8 +14,11 @@ from .entity import AristonEntity
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
                             add_entities: AddEntitiesCallback) -> None:
-    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    add_entities(AristonNumber(coordinator, spec) for spec in entities.NUMBERS)
+    store = hass.data[DOMAIN][entry.entry_id]
+    coordinator = store["coordinator"]
+    active = store["active_zones"]
+    add_entities(AristonNumber(coordinator, spec)
+                 for spec in entities.numbers(active))
 
 
 class AristonNumber(AristonEntity, NumberEntity):

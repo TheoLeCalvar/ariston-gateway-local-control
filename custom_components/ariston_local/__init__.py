@@ -12,11 +12,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 
 from .const import (
+    CONF_ACTIVE_ZONES,
     CONF_CAFILE,
     CONF_HOST,
     CONF_MAC,
     CONF_PORT,
     CONF_SCAN_INTERVAL,
+    DEFAULT_ACTIVE_ZONES,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     TPROG_IDS,
@@ -48,14 +50,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:  # noqa: BLE001
         raise ConfigEntryNotReady(f"cannot connect to broker: {err}") from err
 
+    active_zones = tuple(entry.options.get(CONF_ACTIVE_ZONES, DEFAULT_ACTIVE_ZONES))
+
     scan = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
-    coordinator = AristonCoordinator(hass, entry, gateway, scan)
+    coordinator = AristonCoordinator(hass, entry, gateway, scan, active_zones)
     await coordinator.async_config_entry_first_refresh()
 
     stats = AristonStatsCoordinator(hass, entry, gateway)
     await stats.async_config_entry_first_refresh()
 
-    overrides = AristonOverrideCoordinator(hass, entry, gateway)
+    overrides = AristonOverrideCoordinator(hass, entry, gateway, zones=active_zones)
     await overrides.async_config_entry_first_refresh()
 
     tprog = AristonTProgCoordinator(hass, entry, gateway, TPROG_IDS)
@@ -66,7 +70,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "coordinator": coordinator, "stats": stats, "override": overrides,
-        "tprog": tprog, "holiday": holiday}
+        "tprog": tprog, "holiday": holiday, "active_zones": active_zones}
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     async_register_services(hass)
     entry.async_on_unload(entry.add_update_listener(_async_reload))

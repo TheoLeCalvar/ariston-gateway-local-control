@@ -9,13 +9,16 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.core import callback
+from homeassistant.helpers import selector
 
 from .const import (
+    CONF_ACTIVE_ZONES,
     CONF_CAFILE,
     CONF_HOST,
     CONF_MAC,
     CONF_PORT,
     CONF_SCAN_INTERVAL,
+    DEFAULT_ACTIVE_ZONES,
     DEFAULT_PORT,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
@@ -65,9 +68,29 @@ class AristonOptionsFlow(OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
-        current = self.entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+            # Zone 1 always stays on (it carries the climate entity); the
+            # selector only offers the optional zones 2/3.
+            zones = [1] + sorted(
+                int(z) for z in user_input.get(CONF_ACTIVE_ZONES, []))
+            return self.async_create_entry(title="", data={
+                CONF_SCAN_INTERVAL: user_input[CONF_SCAN_INTERVAL],
+                CONF_ACTIVE_ZONES: zones,
+            })
+
+        opts = self.entry.options
+        scan = opts.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+        active = opts.get(CONF_ACTIVE_ZONES, DEFAULT_ACTIVE_ZONES)
+        extra = [str(z) for z in (2, 3) if z in active]
         schema = vol.Schema({
-            vol.Optional(CONF_SCAN_INTERVAL, default=current): vol.All(int, vol.Range(min=15)),
+            vol.Optional(CONF_SCAN_INTERVAL, default=scan): vol.All(int, vol.Range(min=15)),
+            vol.Optional(CONF_ACTIVE_ZONES, default=extra): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        selector.SelectOptionDict(value="2", label="Zone 2"),
+                        selector.SelectOptionDict(value="3", label="Zone 3"),
+                    ],
+                    multiple=True,
+                    mode=selector.SelectSelectorMode.LIST,
+                )),
         })
         return self.async_show_form(step_id="init", data_schema=schema)

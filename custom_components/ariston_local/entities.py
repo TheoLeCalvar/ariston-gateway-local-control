@@ -17,6 +17,7 @@ class NumberSpec:
     max: float
     step: float
     unit: str = "°C"
+    zone: int | None = None  # None = not zone-specific (always shown)
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,7 @@ class SensorSpec:
     unit: str | None = None
     prefix: str = "U_"  # T_ for technical/live reads, U_ for user values
     device_class: str | None = None
+    zone: int | None = None  # None = not zone-specific (always shown)
 
 
 @dataclass(frozen=True)
@@ -64,15 +66,15 @@ class BinarySpec:
 
 # Writable setpoints (°C, x10 scaling handled via menu.py)
 NUMBERS = [
-    NumberSpec("6.3.1.0.0", "Zone 1 comfort setpoint", 10, 30, 0.5),
-    NumberSpec("6.3.1.0.1", "Zone 1 eco setpoint", 10, 30, 0.5),
-    NumberSpec("6.3.1.1.0", "Zone 2 comfort setpoint", 10, 30, 0.5),
-    NumberSpec("6.3.1.1.1", "Zone 2 eco setpoint", 10, 30, 0.5),
-    NumberSpec("6.3.1.2.0", "Zone 3 comfort setpoint", 10, 30, 0.5),
-    NumberSpec("6.3.1.2.1", "Zone 3 eco setpoint", 10, 30, 0.5),
-    NumberSpec("6.3.0.0", "Zone 1 flow setpoint", 20, 80, 1),
-    NumberSpec("6.3.0.2", "Zone 2 flow setpoint", 20, 80, 1),
-    NumberSpec("6.3.0.4", "Zone 3 flow setpoint", 20, 80, 1),
+    NumberSpec("6.3.1.0.0", "Zone 1 comfort setpoint", 10, 30, 0.5, zone=1),
+    NumberSpec("6.3.1.0.1", "Zone 1 eco setpoint", 10, 30, 0.5, zone=1),
+    NumberSpec("6.3.1.1.0", "Zone 2 comfort setpoint", 10, 30, 0.5, zone=2),
+    NumberSpec("6.3.1.1.1", "Zone 2 eco setpoint", 10, 30, 0.5, zone=2),
+    NumberSpec("6.3.1.2.0", "Zone 3 comfort setpoint", 10, 30, 0.5, zone=3),
+    NumberSpec("6.3.1.2.1", "Zone 3 eco setpoint", 10, 30, 0.5, zone=3),
+    NumberSpec("6.3.0.0", "Zone 1 flow setpoint", 20, 80, 1, zone=1),
+    NumberSpec("6.3.0.2", "Zone 2 flow setpoint", 20, 80, 1, zone=2),
+    NumberSpec("6.3.0.4", "Zone 3 flow setpoint", 20, 80, 1, zone=3),
     NumberSpec("6.9.0", "DHW comfort setpoint", 40, 65, 1),  # device bounds (SystemState)
 ]
 
@@ -96,9 +98,9 @@ SWITCHES = [
 SENSORS = [
     SensorSpec("6.9.5.1", "Anti-legionella frequency", "h"),
     SensorSpec("4.3.0", "Zone 1 temperature", "°C", prefix="T_",
-               device_class="temperature"),
+               device_class="temperature", zone=1),
     SensorSpec("4.3.1", "Zone 1 active setpoint", "°C", prefix="T_",
-               device_class="temperature"),
+               device_class="temperature", zone=1),
     SensorSpec("8.4.0", "Boiler flow temperature", "°C", prefix="T_",
                device_class="temperature"),
     SensorSpec("19.1.1", "Wi-Fi signal", prefix="T_"),
@@ -120,23 +122,46 @@ CLIMATES = [
 ]
 
 
-def all_menus():
+ALL_ZONES = (1, 2, 3)
+
+
+def _zone_ok(zone, active) -> bool:
+    return zone is None or zone in active
+
+
+def numbers(active=ALL_ZONES):
+    return [s for s in NUMBERS if _zone_ok(s.zone, active)]
+
+
+def sensors(active=ALL_ZONES):
+    return [s for s in SENSORS if _zone_ok(s.zone, active)]
+
+
+def climates(active=ALL_ZONES):
+    return [c for c in CLIMATES if c.zone in active]
+
+
+def all_menus(active=ALL_ZONES):
     menus = set()
-    for group in (NUMBERS, SELECTS, SWITCHES, SENSORS, BINARY_SENSORS):
+    for spec in numbers(active) + sensors(active):
+        menus.add(spec.menu)
+    for group in (SELECTS, SWITCHES, BINARY_SENSORS):
         for spec in group:
             menus.add(spec.menu)
-    for c in CLIMATES:
+    for c in climates(active):
         menus.update((c.temp_menu, c.setpoint_menu, c.mode_menu))
     return sorted(menus)
 
 
-def all_codes():
+def all_codes(active=ALL_ZONES):
     """Every device code the coordinator must read, with the right prefix:
-    U_ for writable/user params, each sensor's own prefix (T_ for live reads)."""
-    codes = {f"U_{spec.menu}" for group in (NUMBERS, SELECTS, SWITCHES)
-             for spec in group}
-    codes |= {f"{spec.prefix}{spec.menu}" for spec in SENSORS}
+    U_ for writable/user params, each sensor's own prefix (T_ for live reads).
+    Zones not in `active` are dropped so we neither expose nor poll them."""
+    codes = {f"U_{spec.menu}" for spec in numbers(active)}
+    codes |= {f"U_{spec.menu}" for group in (SELECTS, SWITCHES)
+              for spec in group}
+    codes |= {f"{spec.prefix}{spec.menu}" for spec in sensors(active)}
     codes |= {f"{spec.prefix}{spec.menu}" for spec in BINARY_SENSORS}
-    for c in CLIMATES:
+    for c in climates(active):
         codes |= {f"T_{c.temp_menu}", f"T_{c.setpoint_menu}", f"U_{c.mode_menu}"}
     return sorted(codes)
