@@ -151,13 +151,15 @@ pinned these:
 - **`T_2.1.0`** = burner **flame** (0 off / 1 on) — confirmed by diffing a
   flame-on vs flame-off status; exposed as a `running` binary sensor.
 - **`T_19.1.1`** = **Wi-Fi link quality** (raw 80); exposed as a sensor.
+- **`T_8.2.9`** = **heating water pressure**, ×10 → bar (9 = 0.9 bar, 7 = 0.7
+  bar, owner-confirmed against the app); exposed as a `pressure` sensor.
 - **`T_4.0.2`** = **heating flow setpoint** ("température départ chauffage"), ×10,
   and **writable** — the app PUT `Menu/Par T_4.0.2=510` when set to 51 °C (note it
   writes the `T_` code, not a `U_` one). Documented; not yet exposed as an entity.
 
 Still unidentified (read-only, raw as captured): `T_2.2.8`=3, `T_2.5.7`=0/1
 (writable flag), `T_2.5.8`=28800 (≈8 h), `T_4.2.3`=50, `T_4.3.4`=0, `T_4.8.0`=0,
-`T_8.2.9`=7–9 (varies), `T_19.1.6`=9.
+`T_19.1.6`=9.
 
 ## Time program (`Func/TProg`) — read decoded
 

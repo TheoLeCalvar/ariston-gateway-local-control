@@ -39,6 +39,7 @@
     "4.3.0": {"label": "Zone 1 room temperature",   "fr": "Température ambiante zone 1", "unit": "C", "scale": "x10", "confidence": "observed-on-device"},
     "4.3.1": {"label": "Zone 1 active setpoint",     "fr": "Consigne active zone 1",     "unit": "C", "scale": "x10", "confidence": "observed-on-device"},
 
+    "8.2.9": {"label": "Heating water pressure",     "fr": "Pression circuit chauffage", "unit": "bar", "scale": "x10", "confidence": "observed-on-device"},
     "8.3.0": {"label": "DHW temperature/setpoint (≈50°C)", "unit": "C", "scale": "x10", "confidence": "guess"},
     "8.3.5": {"label": "DHW tank temperature (no sensor / N/A)", "unit": "C", "scale": "x10", "confidence": "observed-on-device"},
     "8.4.0": {"label": "Boiler flow temperature",    "fr": "Température départ chaudière", "unit": "C", "scale": "x10", "confidence": "observed-on-device"}

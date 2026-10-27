@@ -103,6 +103,8 @@ SENSORS = [
     SensorSpec("8.4.0", "Boiler flow temperature", "°C", prefix="T_",
                device_class="temperature"),
     SensorSpec("19.1.1", "Wi-Fi link quality", prefix="T_"),
+    SensorSpec("8.2.9", "Heating water pressure", "bar", prefix="T_",
+               device_class="pressure"),
 ]
 
 # Read-only on/off status (from the T_ technical channel), via the main poll.
