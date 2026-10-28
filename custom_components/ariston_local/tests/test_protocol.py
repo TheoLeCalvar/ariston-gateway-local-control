@@ -136,26 +136,62 @@ class Stat(unittest.TestCase):
     def test_kwh(self):
         self.assertEqual(energy.kwh([0, 124652, 487552]), 612.204)
 
-    def test_fold_total_is_monotonic(self):
-        oct_, nov = (2026, 10), (2026, 11)
-        # first reading: adopt as baseline, add nothing
-        total, last, lm = energy.fold_total(0.0, None, None, 5.0, oct_)
-        self.assertEqual((total, last, lm), (0.0, 5.0, oct_))
-        # same month, rises: add the increment
-        total, last, lm = energy.fold_total(total, last, lm, 8.0, oct_)
-        self.assertEqual((total, last, lm), (3.0, 8.0, oct_))
-        # same month, glitchy dip: ignore, keep high-water mark
-        total, last, lm = energy.fold_total(total, last, lm, 2.0, oct_)
-        self.assertEqual((total, last, lm), (3.0, 8.0, oct_))
-        # recovery only adds what is genuinely new (9 - 8)
-        total, last, lm = energy.fold_total(total, last, lm, 9.0, oct_)
-        self.assertEqual((total, last, lm), (4.0, 9.0, oct_))
-        # month rollover: device reset to new month -> add the whole new figure
-        total, last, lm = energy.fold_total(total, last, lm, 1.5, nov)
-        self.assertEqual((total, last, lm), (5.5, 1.5, nov))
-        # missing reading leaves everything untouched
-        self.assertEqual(
-            energy.fold_total(total, last, lm, None, nov), (5.5, 1.5, nov))
+    # DHW idx-1 window read from the gateway on 2026-10-28 at 12:10: 2-hour
+    # blocks, newest last; the shower is the 2008 Wh in the 10-12 h block.
+    DHW_1210 = [0, 0, 0, 0, 1033, 0, 0, 0, 0, 0, 0, 27,
+                0, 0, 0, 36, 0, 0, 0, 0, 0, 0, 605, 2008]
+
+    def test_fold_blocks_same_and_growing_window(self):
+        w = self.DHW_1210
+        self.assertEqual(energy.fold_blocks(None, w, 0), (0, 0))      # baseline
+        self.assertEqual(energy.fold_blocks(w, list(w), 0), (0, 0))   # same read
+        grown = w[:-1] + [2508]                     # the open block grows
+        self.assertEqual(energy.fold_blocks(w, grown, 0), (500, 0))
+
+    def test_fold_blocks_window_rolls(self):
+        w = self.DHW_1210
+        rolled = w[1:] + [300]                      # next block, 300 Wh in it
+        self.assertEqual(energy.fold_blocks(w, rolled, 1), (300, 1))
+        # gateway not rolled yet although the clock crossed the boundary
+        self.assertEqual(energy.fold_blocks(w, list(w), 1), (0, 0))
+        # two blocks later, and the previous newest block still grew by 92
+        later = w[2:-1] + [2100, 0, 750]
+        self.assertEqual(energy.fold_blocks(w, later, 2), (92 + 750, 2))
+
+    def test_fold_blocks_rejects_reads_that_dont_line_up(self):
+        w = self.DHW_1210
+        self.assertEqual(energy.fold_blocks(w, [0] * 24, 0), (0, None))  # glitch
+        self.assertEqual(energy.fold_blocks(w, w[:-1] + [10], 0), (0, None))  # shrank
+
+    def test_fold_blocks_long_gap_and_dst(self):
+        w = self.DHW_1210
+        fresh = [5] * 24
+        self.assertEqual(energy.fold_blocks(w, fresh, 30), (120, 30))  # all new
+        # local clock stepped back (DST end): treated as no time passed
+        self.assertEqual(energy.fold_blocks(w, list(w), -1), (0, 0))
+
+    def test_block_number_on_even_local_hours(self):
+        # (stdlib datetime is shadowed by the integration's datetime.py on this
+        # test's sys.path, so a tiny stand-in with the two methods used)
+        class At:
+            def __init__(self, utc_h, utc_m, offset_h):
+                self._ts = 1793145600 + utc_h * 3600 + utc_m * 60  # 2026-10-28 00:00Z
+                self._off = offset_h * 3600
+
+            def timestamp(self):
+                return self._ts
+
+            def utcoffset(self):
+                return type("Off", (), {"total_seconds": lambda _s, o=self._off: o})()
+
+        b = energy.block_number
+        # 10:00 and 11:59 CET are the same block, 12:00 CET the next one
+        self.assertEqual(b(At(9, 0, 1)), b(At(10, 59, 1)))
+        self.assertEqual(b(At(11, 0, 1)), b(At(9, 0, 1)) + 1)
+        # blocks follow *local* even hours: 09:30Z is 10:30 CET, block of 10:00
+        self.assertEqual(b(At(9, 30, 1)), b(At(9, 0, 1)))
+        # ...whereas with a UTC clock the same instant is in the 08-10 block
+        self.assertEqual(b(At(9, 30, 0)), b(At(9, 30, 1)) - 1)
 
 
 class Override(unittest.TestCase):

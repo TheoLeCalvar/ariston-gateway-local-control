@@ -55,14 +55,17 @@ catalog in [`entities.py`](entities.py):
   - **"… energy total"** (heating, DHW) — monotonic lifetime counters
     (`total_increasing`); add *these* to the **HA Energy dashboard** (cost is
     left to the dashboard's tariff config). The gateway has no lifetime
-    odometer, so the integration builds the total by folding the this-month
-    accumulator into a running total that only ever rises and persists it across
-    restarts; counting starts when the integration is first added.
-  - **"… this month"** and **"… (trailing year)"** — plain diagnostic read-outs
-    of the device's own windowed figures. The trailing-year window's sum can
-    *decrease* as old months roll off, which a `total_increasing` statistic
-    mis-reads as a reset — so these are deliberately not statistics and are not
-    offered to the Energy dashboard.
+    odometer; the only series that includes today is a rolling 48 h of
+    **2-hour blocks**, so each read is lined up with the previous one and only
+    what grew or is new is added. Expect the total to move in steps, up to
+    about 2 h after the energy was used (a block shows up once the gateway
+    publishes it). The total and the last window persist across restarts;
+    counting starts when the integration is first added.
+  - **"… (recent days)"** and **"… (last 13 months)"** — plain diagnostic
+    read-outs of the device's own windows of *completed* periods (the recent
+    days up to yesterday, the months up to last month), so today and the
+    current month aren't in them yet. Their sums go down as old periods roll
+    off, so they're deliberately not statistics.
 - **Binary sensors** — burner/flame (`running`), holiday mode (with an `until`
   attribute), and per-zone "override active" with `target_temperature` and
   `until` attributes.

@@ -1,6 +1,7 @@
 """Sensor entities: read-only menu parameters + energy (Stat/cWh)."""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 import homeassistant.util.dt as dt_util
@@ -21,6 +22,8 @@ from .const import TPROG_IDS
 from .entity import AristonCoordinatorEntity, AristonEntity
 from .runtime import AristonConfigEntry
 
+_LOGGER = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class EnergySpec:
@@ -37,22 +40,23 @@ class EnergyTotalSpec:
     typ: int
 
 
-# Confirmed against the app's energy screen (see docs/06): Typ 6 = heating,
-# Typ 9 = DHW, values in Wh; idx 2 = this month (daily), idx 4 = trailing year.
+# Typ 6 = heating, Typ 9 = DHW, values in Wh (see energy.py for the windows).
 #
-# The month and trailing-year figures are *windowed* (the year window rolls, so
-# its sum can decrease) — they make poor Energy-dashboard sources and are now
-# plain diagnostic read-outs. The dashboard is fed by the lifetime TOTALS below.
+# These are the device's own rolling windows of *completed* periods (recent
+# days up to yesterday, the 13 months up to last month): handy read-outs, but
+# their sums go down as old periods roll off, so they're diagnostics, not
+# Energy-dashboard sources. (Keys keep their original "month"/"year" names so
+# existing entities keep their ids and history.)
 ENERGY = [
-    EnergySpec("heating_month", "Heating energy this month", energy.TYP_HEATING, energy.IDX_DAILY),
-    EnergySpec("dhw_month", "DHW energy this month", energy.TYP_DHW, energy.IDX_DAILY),
-    EnergySpec("heating_year", "Heating energy (trailing year)", energy.TYP_HEATING, energy.IDX_MONTHLY),
-    EnergySpec("dhw_year", "DHW energy (trailing year)", energy.TYP_DHW, energy.IDX_MONTHLY),
+    EnergySpec("heating_month", "Heating energy (recent days)", energy.TYP_HEATING, energy.IDX_DAILY),
+    EnergySpec("dhw_month", "DHW energy (recent days)", energy.TYP_DHW, energy.IDX_DAILY),
+    EnergySpec("heating_year", "Heating energy (last 13 months)", energy.TYP_HEATING, energy.IDX_MONTHLY),
+    EnergySpec("dhw_year", "DHW energy (last 13 months)", energy.TYP_DHW, energy.IDX_MONTHLY),
 ]
 
-# Monotonic lifetime counters (total_increasing) for the HA Energy dashboard.
-# Built by folding the this-month accumulator into a stored running total that
-# never decreases (see energy.fold_total). Counting starts at install.
+# Monotonic lifetime counters (total_increasing) for the HA Energy dashboard,
+# built from the 2-hour-block window, the only series that includes today
+# (see energy.fold_blocks). Counting starts when the entity is first added.
 ENERGY_TOTALS = [
     EnergyTotalSpec("heating_total", "Heating energy total", energy.TYP_HEATING),
     EnergyTotalSpec("dhw_total", "DHW energy total", energy.TYP_DHW),
@@ -120,21 +124,27 @@ class _TotalStoredData(ExtraStoredData):
     """Persisted state of a lifetime counter across restarts."""
 
     total: float
-    last: float | None
-    last_month: list | None  # [year, month]
+    blocks: list[int] | None  # last idx-1 window folded in
+    block: int | None         # block number of that window's newest entry
 
     def as_dict(self):
-        return {"total": self.total, "last": self.last,
-                "last_month": self.last_month}
+        return {"total": self.total, "blocks": self.blocks, "block": self.block}
+
+
+# Consecutive reads that fit no alignment before the window is re-baselined
+# (with a 10-min stats poll, about an hour). Guards against counting forever
+# nothing if the window ever stops lining up, at the cost of that hour.
+_MAX_UNALIGNED = 6
 
 
 class AristonEnergyTotalSensor(AristonCoordinatorEntity, RestoreSensor):
     """Monotonic lifetime energy total (kWh) for the HA Energy dashboard.
 
-    The gateway reports no lifetime odometer, so this folds the this-month
-    accumulator into a running total that only ever increases (see
-    `energy.fold_total`) and persists it across restarts. Counting starts when
-    the entity is first added."""
+    The gateway reports no lifetime odometer, so each new read of the rolling
+    2-hour-block window is lined up with the previous one and only what grew
+    or is new is added (see `energy.fold_blocks`). The total and the last
+    window persist across restarts; a restart shorter than the window (48 h)
+    loses nothing. Counting starts when the entity is first added."""
 
     _attr_device_class = SensorDeviceClass.ENERGY
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
@@ -145,8 +155,10 @@ class AristonEnergyTotalSensor(AristonCoordinatorEntity, RestoreSensor):
         super().__init__(stats_coordinator, f"energy_{spec.key}", spec.name)
         self._spec = spec
         self._total = 0.0
-        self._last = None
-        self._last_month = None
+        self._blocks: list[int] | None = None
+        self._block: int | None = None
+        self._unaligned = 0
+        self._folded = None  # the coordinator data last folded in
 
     @property
     def native_value(self):
@@ -154,9 +166,7 @@ class AristonEnergyTotalSensor(AristonCoordinatorEntity, RestoreSensor):
 
     @property
     def extra_restore_state_data(self) -> ExtraStoredData:
-        return _TotalStoredData(
-            self._total, self._last,
-            list(self._last_month) if self._last_month else None)
+        return _TotalStoredData(self._total, self._blocks, self._block)
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -164,23 +174,42 @@ class AristonEnergyTotalSensor(AristonCoordinatorEntity, RestoreSensor):
         if stored is not None:
             d = stored.as_dict()
             self._total = float(d.get("total") or 0.0)
-            self._last = d.get("last")
-            lm = d.get("last_month")
-            self._last_month = tuple(lm) if lm else None
+            # (state saved by 0.13-0.15 has no window: it re-baselines)
+            self._blocks = d.get("blocks")
+            self._block = d.get("block")
         # fold in whatever the coordinator already has, then publish
         self._ingest()
         self.async_write_ha_state()
 
-    def _current(self):
-        series = (self.coordinator.data or {}).get(
-            (self._spec.typ, energy.IDX_DAILY))
-        return None if series is None else energy.kwh(series)
-
     def _ingest(self) -> None:
-        now = dt_util.now()
-        self._total, self._last, self._last_month = energy.fold_total(
-            self._total, self._last, self._last_month,
-            self._current(), (now.year, now.month))
+        data = self.coordinator.data
+        # Listeners also fire after a failed poll, with the old data: only
+        # fold in a read we haven't seen yet.
+        if not self.coordinator.last_update_success or data is self._folded:
+            return
+        self._folded = data
+        new = (data or {}).get((self._spec.typ, energy.IDX_BLOCKS))
+        if not new:
+            return
+        now_block = energy.block_number(dt_util.now())
+        if self._blocks is None or self._block is None or len(self._blocks) != len(new):
+            # first read (or the window changed shape): a baseline, adds nothing
+            self._blocks, self._block = list(new), now_block
+            return
+        added, shift = energy.fold_blocks(self._blocks, new, now_block - self._block)
+        if shift is None:
+            self._unaligned += 1
+            if self._unaligned < _MAX_UNALIGNED:
+                _LOGGER.debug("%s: read doesn't line up with the last one; "
+                              "skipped", self.entity_id)
+                return
+            _LOGGER.warning("%s: energy window stopped lining up; re-baselining "
+                            "(up to an hour of usage not counted)", self.entity_id)
+            added, shift = 0, now_block - self._block
+        self._unaligned = 0
+        self._total += added / 1000.0
+        self._blocks = list(new)
+        self._block += shift
 
     def _handle_coordinator_update(self) -> None:
         self._ingest()

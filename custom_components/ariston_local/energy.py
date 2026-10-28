@@ -8,7 +8,15 @@ Confirmed by matching a capture to the app's energy screen (see docs/06):
   Typ 9  = DHW (eau chaude sanitaire) energy, Wh
   Typ 20 = heating burner runtime (minutes, ~188 Wh/min) [hypothesis]
   Typ 21 = DHW burner runtime (minutes) [hypothesis]
-  idx 1 = hourly (today), idx 2 = daily (this month), idx 4 = monthly (trailing year)
+
+The idx selects a rolling window, oldest value first (worked out on 2026-10-28
+by lining a live read up against the burner's on/off history in HA, with exact
+cross-checks between the series):
+  idx 1 = 24 two-hour blocks (48 h), newest last -- the only series with today
+  idx 2 = recent *completed* days (20 seen), newest = yesterday
+  idx 4 = 13 *completed* months, newest = last month
+So the day and month series only take a period in once it has ended; a shower
+this morning shows in idx 1 within its 2-hour block, and in idx 2 tomorrow.
 """
 from __future__ import annotations
 
@@ -21,9 +29,11 @@ except ImportError:  # top-level import (standalone tests)
 TYP_HEATING = 6
 TYP_DHW = 9
 
-IDX_HOURLY = 1   # 24 buckets, today
-IDX_DAILY = 2    # ~month of daily buckets
-IDX_MONTHLY = 4  # ~13 monthly buckets, trailing year
+IDX_BLOCKS = 1   # 24 x 2-hour blocks, rolling 48 h (includes today)
+IDX_DAILY = 2    # recent completed days, newest = yesterday
+IDX_MONTHLY = 4  # 13 completed months, newest = last month
+
+BLOCK_SECONDS = 2 * 3600  # one idx-1 block
 
 
 def _varints(buf):
@@ -78,34 +88,39 @@ def kwh(values) -> float:
     return round(sum(values) / 1000.0, 3)
 
 
-def fold_total(total, last, last_month, current, now_month):
-    """Advance a monotonic lifetime total from a within-month accumulator.
+def block_number(when) -> int:
+    """The idx-1 block a local datetime falls in (blocks start on even local hours)."""
+    offset = when.utcoffset()
+    local = when.timestamp() + (offset.total_seconds() if offset else 0)
+    return int(local // BLOCK_SECONDS)
 
-    The device has no lifetime odometer; the finest reliable series we poll is
-    the *this-month* accumulator (idx 2), which grows through the month and
-    resets to ~0 when a new month starts. We turn that into a counter that only
-    ever increases (what the HA Energy dashboard needs):
 
-    - first reading: adopt it as the baseline, add nothing;
-    - same calendar month and the reading went up: add the increment;
-    - same month and the reading dipped: ignore it (a glitchy/partial reply),
-      keep the high-water `last` so a recovery only adds what is genuinely new;
-    - the calendar month changed: a real reset, so add the whole new-month
-      figure. (The only loss is energy used between the last poll of the old
-      month and the rollover — a few minutes at a 10-min poll.)
+def fold_blocks(prev, new, elapsed):
+    """Energy added between two reads of the rolling 2-hour-block window.
 
-    `now_month` / `last_month` are (year, month) tuples. Returns the updated
-    `(total, last, last_month)`.
+    The device has no lifetime odometer, so the lifetime total is built from
+    the idx-1 window: line the new read up with the previous one and add only
+    what grew or is new. `elapsed` is how many blocks the clock says have
+    passed since `prev` was read; the alignment tried is that, then one block
+    fewer (the gateway rolls a little after the clock) or one more. An
+    alignment is valid when no overlapping block shrank.
+
+    Returns `(added_wh, shift)`, where `shift` is the number of blocks the
+    window actually moved, or `(0, None)` when no alignment fits (a glitchy
+    or partial reply: skip it and keep `prev`). With no `prev` (first read)
+    the new window is only a baseline: `(0, 0)`.
     """
-    if current is None:
-        return total, last, last_month
-    if last is None:
-        return total, current, now_month
-    if last_month == now_month:
-        if current > last:
-            total += current - last
-            last = current
-    else:  # calendar month rolled over -> device reset to the new month
-        total += current
-        last, last_month = current, now_month
-    return round(total, 6), last, last_month
+    n = len(new)
+    if prev is None or len(prev) != n:
+        return 0, 0
+    elapsed = max(int(elapsed), 0)  # the local clock steps back at DST end
+    if elapsed >= n + 1:  # gap longer than the window: everything is new
+        return sum(new), elapsed
+    for shift in dict.fromkeys((elapsed, max(elapsed - 1, 0), elapsed + 1)):
+        if shift >= n:
+            return sum(new), shift
+        overlap = range(n - shift)
+        if all(new[i] >= prev[i + shift] for i in overlap):
+            grown = sum(new[i] - prev[i + shift] for i in overlap)
+            return grown + sum(new[n - shift:]), shift
+    return 0, None

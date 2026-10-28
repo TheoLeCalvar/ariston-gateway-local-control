@@ -56,6 +56,11 @@ class FakeGateway:
         self.reads = 0                      # Menu/Par polls
         self.holds: dict[int, dict] = {}    # zone -> active Func/Der hold
         self.holiday = {"mode": 1, "end": 0}
+        # Stat/cWh: idx 1 = 24 two-hour blocks (newest last), 2 = days, 4 = months
+        self.stats = {(6, 1): [0] * 24, (9, 1): [0] * 23 + [605],
+                      (6, 2): [1000, 2000], (9, 2): [500],
+                      (6, 4): [3000, 4000], (9, 4): [700]}
+        self.stats_fail = False
         FakeGateway.instances.append(self)
 
     # lifecycle
@@ -71,8 +76,9 @@ class FakeGateway:
         return {code: 200 for code in codes}   # setpoints decode to 20.0 °C
 
     def read_stats(self, timeout=8):
-        return {(6, 2): [1000, 2000], (9, 2): [500],
-                (6, 4): [3000, 4000], (9, 4): [700]}
+        if self.stats_fail:
+            raise TimeoutError("no Stat/cWh reply")
+        return {key: list(values) for key, values in self.stats.items()}
 
     def read_override(self, zone=1, timeout=8):
         return self.holds.get(
@@ -170,6 +176,39 @@ async def test_energy_sensors(hass, fake_gateway):
     assert float(total.state) == 0.0          # first reading is the baseline
     assert total.attributes["state_class"] == "total_increasing"
     assert "state_class" not in month.attributes
+
+
+async def test_energy_total_counts_the_two_hour_blocks(hass, fake_gateway):
+    entry, gw = await _setup(hass)
+    total_id = _entity_id(hass, entry, f"{MAC}_energy_dhw_total")
+    stats = entry.runtime_data.stats
+    value = lambda: float(hass.states.get(total_id).state)  # noqa: E731
+    assert value() == 0.0                         # first window is a baseline
+
+    gw.stats[(9, 1)][-1] += 2008                  # a shower in the open block
+    await stats.async_refresh()
+    await hass.async_block_till_done()
+    assert value() == 2.008
+
+    gw.stats_fail = True                          # a failed poll re-notifies
+    await stats.async_refresh()                   # listeners with the old data:
+    gw.stats_fail = False                         # it must not be counted twice
+    await stats.async_refresh()
+    await hass.async_block_till_done()
+    assert value() == 2.008
+
+    # a reload keeps the total *and* the window, so nothing is re-counted
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    gw = FakeGateway.instances[-1]
+    gw.stats[(9, 1)] = [0] * 23 + [605 + 2008]    # same window as before reload
+    await entry.runtime_data.stats.async_refresh()
+    await hass.async_block_till_done()
+    assert value() == 2.008
+    gw.stats[(9, 1)][-1] += 400
+    await entry.runtime_data.stats.async_refresh()
+    await hass.async_block_till_done()
+    assert value() == 2.408
 
 
 async def test_buttons(hass, fake_gateway):

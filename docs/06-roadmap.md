@@ -134,6 +134,22 @@ chaude sanitaire):
 Periods: **idx=1** hourly (today), **idx=2** daily (this month), **idx=4** monthly
 (trailing ~13 months). Values are gas energy in **Wh**.
 
+> **Corrected 2026-10-28** — the periods above were wrong; worked out by lining a
+> live read up against the burner's on/off history in HA:
+>
+> - **idx=1** = 24 **two-hour** blocks, a rolling 48 h, newest last. Burner runs
+>   at 06:32 (heating, 13 min), 08:27 (DHW, 2 min) and 10:20–10:39 (a shower,
+>   11 min) landed in the last three blocks (06–08, 08–10, 10–12 h).
+> - **idx=2** = recent **completed** days (20 seen), newest = **yesterday**:
+>   26 Oct = 1033 Wh = that evening's single 20–22 h block; 27 Oct = 63 Wh =
+>   its two small blocks (27 + 36 Wh). Today only enters it after midnight.
+> - **idx=4** = 13 **completed** months, newest = last month (heating peaks in
+>   the middle = winter; the current month reads 0 despite October heating).
+>
+> So "this month" was really "the last 20 days up to yesterday" (its sum *fell*
+> at midnight as a day rolled off), and only idx=1 sees today. The lifetime
+> energy totals are built from idx=1 since 0.16.0.
+
 **Implemented** (`custom_components/ariston_local/`):
 - `energy.py`: ported Stat/cWh body decoder → `{(typ, idx): [Wh]}`.
 - `gateway.read_stats()` (GET `Stat/cWh`, `Typ=6,9`) + a slow `AristonStatsCoordinator`.

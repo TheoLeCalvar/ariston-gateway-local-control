@@ -4,8 +4,21 @@ All notable changes to the `ariston_local` Home Assistant integration. Versions
 follow the `manifest.json` version. Format based on
 [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.16.0] - 2026-10-28
+### Fixed
+- **The lifetime energy totals never counted anything** (stuck at 0, e.g. a
+  shower didn't show). They were built on the "this month" series, which turned
+  out to be the last ~20 *completed* days up to yesterday: today is never in it,
+  and its sum drops at midnight. The totals are now built from the only series
+  that includes today, a rolling 48 h of 2-hour blocks: each read is lined up
+  with the previous one (by the clock, allowing the gateway to roll a block
+  early or late) and only what grew or is new is added; a read that fits no
+  alignment is skipped, never double-counted. Expect steps up to ~2 h after
+  the energy is used. Existing totals restart from a fresh baseline.
 ### Changed
+- The windowed energy sensors are renamed to say what they hold: "… (recent
+  days)" (completed days up to yesterday) and "… (last 13 months)" (completed
+  months). Entity ids and history are unchanged.
 - The repo's CLI tools (`tools/`) now import the integration's protocol modules
   (`kura`, `menu`, `energy`, `tprog`, and `menu_params.json`) instead of keeping
   their own copies. The Kura decoder now also surfaces a payload's `position`
@@ -172,6 +185,7 @@ Internal restructuring; entities and their ids are unchanged.
   `Menu/Par` protocol): config flow, number / select / switch / sensor entities,
   and a batched polling coordinator.
 
+[0.16.0]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.16.0
 [0.15.0]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.15.0
 [0.14.0]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.14.0
 [0.13.2]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.13.2
