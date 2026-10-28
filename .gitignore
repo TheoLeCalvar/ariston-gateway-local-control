@@ -1,4 +1,5 @@
-# Never commit private keys or captured traffic
+# Never commit private keys, tokens or captured traffic
+.env
 *.key
 *.pem
 server.crt
