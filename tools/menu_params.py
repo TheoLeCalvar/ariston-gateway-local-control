@@ -9,9 +9,10 @@ integer value. Codes look like:
     T_8.4.0       technical / sensor read at menu 8.4.0
     C_U_6.9.0     the "C_" variant of a code (returns the same value here)
 
-`tools/menu_params.json` maps the menu number to a label, unit, scaling and enum,
-worked out by matching a capture against the web installer menu. This module
-parses a code, looks it up, and can enrich a decoded reply stream.
+`custom_components/ariston_local/menu_params.json` maps the menu number to a
+label, unit, scaling and enum, worked out by matching a capture against the web
+installer menu. The parsing and scaling live in the component's menu.py; this
+module adds the lookup/enrichment helpers and the CLI.
 
 Library:
     from menu_params import parse_code, annotate, batch_metrics
@@ -24,40 +25,17 @@ CLI:
     kura_decode.py reply.bin | menu_params.py --enrich   # annotate a reply
 """
 import os
-import re
 import sys
 import json
 import argparse
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_MAP_PATH = os.path.join(_HERE, "menu_params.json")
-
-# optional "C_" variant, then U_ or T_, then a dotted menu number
-CODE_RE = re.compile(r"^(C_)?([UT])_([0-9]+(?:\.[0-9]+)*)$")
-
-
-def load_params(path=_MAP_PATH):
-    try:
-        with open(path) as f:
-            return json.load(f).get("parameters", {})
-    except (OSError, json.JSONDecodeError):
-        return {}
-
-
-PARAMS = load_params()
-KIND = {"U": "user", "T": "technical"}
-
-
-def parse_code(name):
-    """Parse 'C_U_6.16.0' -> {code, variant, kind, menu}, or None."""
-    if not isinstance(name, str):
-        return None
-    m = CODE_RE.match(name)
-    if not m:
-        return None
-    cvar, kind, menu = m.groups()
-    return {"code": name, "variant": "C" if cvar else "",
-            "kind": KIND.get(kind, kind), "menu": menu}
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _component  # noqa: E402,F401
+# parsing, scaling and the parameter map live in the component (menu.py)
+from menu import (  # noqa: E402,F401
+    CODE_RE, PARAMS, _KIND as KIND, load_params, parse_code, apply_scale, to_raw,
+    batch_metrics, decode,
+)
 
 
 def annotate(name):
@@ -69,42 +47,6 @@ def annotate(name):
     if known:
         p["known"] = known
     return p
-
-
-def apply_scale(value, scale):
-    """Physical value for the known scalings; value unchanged otherwise."""
-    try:
-        if scale == "x10":
-            return round(value / 10.0, 1)
-        if scale == "x100":
-            return value * 100
-        if scale == "div60":
-            return round(value / 60.0, 2)
-    except (TypeError, ValueError):
-        pass
-    return value
-
-
-def to_raw(value, scale):
-    """Inverse of apply_scale: human value -> raw integer the device expects."""
-    if scale == "x10":
-        return int(round(float(value) * 10))
-    if scale == "x100":
-        return int(round(float(value) / 100))
-    if scale == "div60":
-        return int(round(float(value) * 60))
-    return int(value)
-
-
-def _decode_value(known, value):
-    """Return (scaled_value, enum_label) for a raw metric value."""
-    if value == 32767:  # 0x7FFF: not-available sentinel
-        return None, "N/A"
-    scale = known.get("scale")
-    if scale == "enum":
-        enum = known.get("enum") or {}
-        return value, enum.get(str(value))
-    return apply_scale(value, scale), None
 
 
 def _enrich_obj(obj):
@@ -127,7 +69,7 @@ def _enrich_obj(obj):
             if known.get("unit"):
                 note["unit"] = known["unit"]
             if isinstance(m, dict):
-                scaled, enum_label = _decode_value(known, m.get("value"))
+                scaled, enum_label = decode(info["menu"], m.get("value"))
                 if scaled is not None and scaled != m.get("value"):
                     note["scaled_value"] = scaled
                 if enum_label is not None:
@@ -137,14 +79,6 @@ def _enrich_obj(obj):
         else:
             metrics[name] = {"value": m, "menu_param": note}
     return obj
-
-
-def batch_metrics(codes, per=16):
-    """Yield request-metric dicts {"P1": ("STRING", code), ...}, <=16 codes each."""
-    codes = list(codes)
-    for i in range(0, len(codes), per):
-        chunk = codes[i:i + per]
-        yield {f"P{j + 1}": ("STRING", c) for j, c in enumerate(chunk)}
 
 
 def all_codes(prefix="U_"):

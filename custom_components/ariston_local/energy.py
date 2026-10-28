@@ -1,4 +1,4 @@
-"""Decode the Ariston Stat/cWh energy reply (self-contained; see tools/stat_decode.py).
+"""Decode the Ariston Stat/cWh energy reply (self-contained; tools/stat_decode.py is its CLI).
 
 The energy data is in the KuraPayload body (field 5001): repeated entries
 {1: idx, 2: Typ, 3: packed varint values}. One series per (Typ, idx).
@@ -34,9 +34,12 @@ def _varints(buf):
     return vals
 
 
-def decode_stat_body(body: bytes) -> dict:
-    """Return {(typ, idx): [values]} from a Stat/cWh body."""
-    out: dict = {}
+def decode_stat_series(body: bytes) -> list[dict]:
+    """Return every [{"typ", "idx", "values"}] entry of a Stat/cWh body, in order.
+
+    Lossless view (keeps entries with a missing Typ/idx and duplicates), as the
+    tools print it; decode_stat_body() is the keyed view the component uses."""
+    out = []
     for f, w, v in kura._read_fields(body):
         if f == 1 and w == 2:
             idx = typ = None
@@ -48,9 +51,19 @@ def decode_stat_body(body: bytes) -> dict:
                     typ = sv
                 elif sf == 3 and sw == 2:
                     arr = sv
-            if typ is not None and idx is not None:
-                out[(typ, idx)] = _varints(arr)
+            out.append({"typ": typ, "idx": idx, "values": _varints(arr)})
     return out
+
+
+def decode_stat_body(body: bytes) -> dict:
+    """Return {(typ, idx): [values]} from a Stat/cWh body."""
+    return {(s["typ"], s["idx"]): s["values"] for s in decode_stat_series(body)
+            if s["typ"] is not None and s["idx"] is not None}
+
+
+def decode_stat_payload(data: bytes) -> list[dict]:
+    """Decode a full Stat/cWh reply payload (body in field 5001) into its series."""
+    return decode_stat_series(bytes.fromhex(kura.decode_payload(data).get("body", "")))
 
 
 def decode_reply_body_hex(body_hex: str) -> dict:

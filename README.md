@@ -50,15 +50,16 @@ broker/
 custom_components/
   ariston_local/             Home Assistant integration (local MQTT, Menu/Par)
 tools/
-  kura_decode.py             stdlib Eurotech Kura/Kapua payload decoder
-  kura_encode.py             stdlib Kura payload encoder (inverse of the decoder)
+  _component.py              puts the integration's protocol modules on sys.path
+  kura_decode.py             Kura/Kapua payload decoder CLI (codec: ariston_local/kura.py)
+  kura_encode.py             Kura payload encoder CLI (inverse of the decoder)
   kura_client.py             Mode A: send GET/PUT/EXEC, read the matching REPLY
   sweep_registers.py         Mode A: actively GET named resources (GET-only)
   read_menu.py               Mode A: read installer-menu params via Menu/Par
   write_menu.py              Mode A: write params (PUT Menu/Par), scaling-aware
-  menu_params.py             decode U_/T_ menu codes + enrich (map in .json)
-  menu_params.json           menu number → label/unit/scale/enum (from capture)
-  stat_decode.py             decode Stat/cWh energy series (data lives in the body)
+  menu_params.py             decode U_/T_ menu codes + enrich (ariston_local/menu.py)
+  stat_decode.py             decode Stat/cWh energy series (ariston_local/energy.py)
+  tprog_roundtrip.py         Mode A: reversible Func/TProg write test (ariston_local/tprog.py)
   analyze_capture.py         roll an mqtt_mitm log up into a command dictionary
   ebus_params.py             decode hex metric names into eBUS registers + enrich
   ebus_registers.json        extensible map of known eBUS registers → meaning
