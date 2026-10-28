@@ -1,19 +1,20 @@
-"""Services: temporary override set / clear."""
+"""Integration services: override, time program, holiday.
+
+Each service acts on every loaded gateway (there is normally one) through the
+same runtime actions the entities use (runtime.AristonRuntimeData)."""
 from __future__ import annotations
 
-import functools
-import logging
 import time
 
 import voluptuous as vol
 
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
 
 from .const import DOMAIN
-
-_LOGGER = logging.getLogger(__name__)
+from .runtime import AristonRuntimeData
 
 SERVICE_SET_OVERRIDE = "set_override"
 SERVICE_CLEAR_OVERRIDE = "clear_override"
@@ -45,64 +46,42 @@ _CLEAR_SCHEMA = vol.Schema({
 })
 
 
-def _stores(hass: HomeAssistant):
-    return list(hass.data.get(DOMAIN, {}).values())
+def _runtimes(hass: HomeAssistant) -> list[AristonRuntimeData]:
+    runtimes = [entry.runtime_data
+                for entry in hass.config_entries.async_entries(DOMAIN)
+                if entry.state is ConfigEntryState.LOADED]
+    if not runtimes:
+        raise HomeAssistantError("no Ariston gateway is loaded")
+    return runtimes
 
 
 def async_register_services(hass: HomeAssistant) -> None:
-    if hass.services.has_service(DOMAIN, SERVICE_SET_OVERRIDE):
-        return
-
     async def _set(call: ServiceCall) -> None:
-        zone = call.data["zone"]
-        temp = call.data["temperature"]
         end = int(time.time() + call.data["duration"].total_seconds())
-        for store in _stores(hass):
-            gw = store["coordinator"].gateway
-            rc = await hass.async_add_executor_job(gw.set_override, zone, temp, end)
-            if rc not in (None, 200):
-                _LOGGER.warning("set_override zone %s returned response.code=%s", zone, rc)
-            await store["override"].async_request_refresh()
+        for rt in _runtimes(hass):
+            await rt.async_set_override(
+                call.data["zone"], call.data["temperature"], end)
 
     async def _clear(call: ServiceCall) -> None:
-        zone = call.data["zone"]
-        for store in _stores(hass):
-            gw = store["coordinator"].gateway
-            await hass.async_add_executor_job(gw.clear_override, zone)
-            await store["override"].async_request_refresh()
+        for rt in _runtimes(hass):
+            await rt.async_clear_override(call.data["zone"])
 
     async def _set_tprog(call: ServiceCall) -> None:
-        pid = call.data["id"]
-        comfort = call.data.get("comfort")
-        eco = call.data.get("eco")
-        profiles = call.data.get("profiles")
-        if comfort is None and eco is None and profiles is None:
+        changes = {k: call.data.get(k) for k in ("comfort", "eco", "profiles")}
+        if all(v is None for v in changes.values()):
             raise HomeAssistantError(
                 "set_time_program needs at least one of comfort, eco, profiles")
-        for store in _stores(hass):
-            gw = store["coordinator"].gateway
-            fn = functools.partial(gw.set_time_program, pid, comfort=comfort,
-                                   eco=eco, profiles=profiles)
-            rc = await hass.async_add_executor_job(fn)
-            if rc not in (None, 200):
-                _LOGGER.warning("set_time_program id=%s returned response.code=%s",
-                                pid, rc)
-            await store["tprog"].async_request_refresh()
+        for rt in _runtimes(hass):
+            await rt.async_set_time_program(call.data["id"], **changes)
 
     async def _set_holiday(call: ServiceCall) -> None:
         end = int(call.data["until"].timestamp())
-        for store in _stores(hass):
-            gw = store["coordinator"].gateway
-            rc = await hass.async_add_executor_job(gw.set_holiday, end)
-            if rc not in (None, 200):
-                _LOGGER.warning("set_holiday returned response.code=%s", rc)
-            await store["holiday"].async_request_refresh()
+        for rt in _runtimes(hass):
+            await rt.async_set_holiday(end)
 
     async def _clear_holiday(call: ServiceCall) -> None:
-        for store in _stores(hass):
-            gw = store["coordinator"].gateway
-            await hass.async_add_executor_job(gw.clear_holiday)
-            await store["holiday"].async_request_refresh()
+        for rt in _runtimes(hass):
+            await rt.async_clear_holiday()
 
     hass.services.async_register(DOMAIN, SERVICE_SET_OVERRIDE, _set, schema=_SET_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_CLEAR_OVERRIDE, _clear, schema=_CLEAR_SCHEMA)
@@ -111,12 +90,3 @@ def async_register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(DOMAIN, SERVICE_SET_HOLIDAY, _set_holiday,
                                  schema=_HOLIDAY_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_CLEAR_HOLIDAY, _clear_holiday)
-
-
-def async_unregister_services(hass: HomeAssistant) -> None:
-    if not hass.data.get(DOMAIN):
-        hass.services.async_remove(DOMAIN, SERVICE_SET_OVERRIDE)
-        hass.services.async_remove(DOMAIN, SERVICE_CLEAR_OVERRIDE)
-        hass.services.async_remove(DOMAIN, SERVICE_SET_TIME_PROGRAM)
-        hass.services.async_remove(DOMAIN, SERVICE_SET_HOLIDAY)
-        hass.services.async_remove(DOMAIN, SERVICE_CLEAR_HOLIDAY)

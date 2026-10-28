@@ -1,0 +1,3 @@
+# HA-level tests (tests/): pulls in a matching homeassistant + pytest plugins.
+pytest-homeassistant-custom-component
+paho-mqtt>=1.6.1

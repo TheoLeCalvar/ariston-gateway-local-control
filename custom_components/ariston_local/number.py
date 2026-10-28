@@ -2,25 +2,21 @@
 from __future__ import annotations
 
 from homeassistant.components.number import NumberEntity, NumberMode, RestoreNumber
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import entities, menu
-from .const import DEFAULT_CLIMATE_HOLD_HOURS, DOMAIN, MANUFACTURER
-from .entity import AristonEntity
+from .entity import AristonEntity, identify
+from .runtime import AristonConfigEntry, AristonRuntimeData
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
+async def async_setup_entry(hass: HomeAssistant, entry: AristonConfigEntry,
                             add_entities: AddEntitiesCallback) -> None:
-    store = hass.data[DOMAIN][entry.entry_id]
-    coordinator = store["coordinator"]
-    active = store["active_zones"]
-    ents: list[NumberEntity] = [AristonNumber(coordinator, spec)
-                                for spec in entities.numbers(active)]
-    ents.append(AristonOverrideDurationNumber(store, entry))
+    runtime = entry.runtime_data
+    ents: list[NumberEntity] = [AristonNumber(runtime.coordinator, spec)
+                                for spec in entities.numbers(runtime.active_zones)]
+    ents.append(AristonOverrideDurationNumber(runtime, entry))
     add_entities(ents)
 
 
@@ -54,10 +50,9 @@ class AristonOverrideDurationNumber(RestoreNumber):
     """How long a climate-card temperature change holds before auto-reverting.
 
     Not a device parameter: it's an HA-side setting the climate entity reads when
-    it issues a dérogation (Func/Der). Restored across restarts and stored on the
-    entry so the climate can read it synchronously."""
+    it issues a dérogation (Func/Der). Restored across restarts and kept on the
+    entry's runtime data so the climate can read it synchronously."""
 
-    _attr_has_entity_name = True
     _attr_native_min_value = 1
     _attr_native_max_value = 72
     _attr_native_step = 1
@@ -65,29 +60,20 @@ class AristonOverrideDurationNumber(RestoreNumber):
     _attr_mode = NumberMode.BOX
     _attr_icon = "mdi:timer-sand"
 
-    def __init__(self, store, entry: ConfigEntry):
-        self._store = store
-        self._value = float(DEFAULT_CLIMATE_HOLD_HOURS)
-        store["override_hours"] = self._value
-        mac = entry.unique_id or entry.data.get("mac", "unknown")
-        self._attr_unique_id = f"{mac}_override_hours"
-        self._attr_name = "Override duration"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, mac)}, manufacturer=MANUFACTURER,
-            name=f"Ariston gateway {mac}")
+    def __init__(self, runtime: AristonRuntimeData, entry: AristonConfigEntry):
+        self._runtime = runtime
+        identify(self, entry, "override_hours", "Override duration")
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         last = await self.async_get_last_number_data()
         if last is not None and last.native_value is not None:
-            self._value = float(last.native_value)
-            self._store["override_hours"] = self._value
+            self._runtime.override_hours = float(last.native_value)
 
     @property
     def native_value(self) -> float:
-        return self._value
+        return self._runtime.override_hours
 
     async def async_set_native_value(self, value: float) -> None:
-        self._value = float(value)
-        self._store["override_hours"] = self._value
+        self._runtime.override_hours = float(value)
         self.async_write_ha_state()

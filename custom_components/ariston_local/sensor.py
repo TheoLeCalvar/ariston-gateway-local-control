@@ -10,17 +10,16 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfEnergy
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo, EntityCategory
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import ExtraStoredData
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import entities, menu, energy, tprog
-from .const import DOMAIN, MANUFACTURER
-from .entity import AristonEntity
+from .const import TPROG_IDS
+from .entity import AristonCoordinatorEntity, AristonEntity
+from .runtime import AristonConfigEntry
 
 
 @dataclass(frozen=True)
@@ -60,17 +59,15 @@ ENERGY_TOTALS = [
 ]
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
+async def async_setup_entry(hass: HomeAssistant, entry: AristonConfigEntry,
                             add_entities: AddEntitiesCallback) -> None:
-    store = hass.data[DOMAIN][entry.entry_id]
-    coordinator = store["coordinator"]
-    stats = store["stats"]
-    tprog = store["tprog"]
-    active = store["active_zones"]
-    ents = [AristonSensor(coordinator, spec) for spec in entities.sensors(active)]
-    ents += [AristonEnergySensor(stats, entry, spec) for spec in ENERGY]
-    ents += [AristonEnergyTotalSensor(stats, entry, spec) for spec in ENERGY_TOTALS]
-    ents += [AristonTProgSensor(tprog, entry, pid) for pid in tprog.prog_ids]
+    runtime = entry.runtime_data
+    ents: list[SensorEntity] = [
+        AristonSensor(runtime.coordinator, spec)
+        for spec in entities.sensors(runtime.active_zones)]
+    ents += [AristonEnergySensor(runtime.stats, spec) for spec in ENERGY]
+    ents += [AristonEnergyTotalSensor(runtime.stats, spec) for spec in ENERGY_TOTALS]
+    ents += [AristonTProgSensor(runtime.tprog, pid) for pid in TPROG_IDS]
     add_entities(ents)
 
 
@@ -94,7 +91,7 @@ class AristonSensor(AristonEntity, SensorEntity):
         return enum_label if enum_label is not None else value
 
 
-class AristonEnergySensor(CoordinatorEntity, SensorEntity):
+class AristonEnergySensor(AristonCoordinatorEntity, SensorEntity):
     """Windowed energy figure in kWh, summed from a Stat/cWh (Typ, idx) series.
 
     Diagnostic read-out only. The window is not an ever-increasing total (the
@@ -102,21 +99,14 @@ class AristonEnergySensor(CoordinatorEntity, SensorEntity):
     `total_increasing` statistic and is not offered to the Energy dashboard —
     use the lifetime totals for that."""
 
-    _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.ENERGY
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
     _attr_icon = "mdi:fire"
 
-    def __init__(self, stats_coordinator, entry: ConfigEntry, spec: EnergySpec):
-        super().__init__(stats_coordinator)
+    def __init__(self, stats_coordinator, spec: EnergySpec):
+        super().__init__(stats_coordinator, f"energy_{spec.key}", spec.name)
         self._spec = spec
-        mac = entry.unique_id or entry.data.get("mac", "unknown")
-        self._attr_unique_id = f"{mac}_energy_{spec.key}"
-        self._attr_name = spec.name
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, mac)}, manufacturer=MANUFACTURER,
-            name=f"Ariston gateway {mac}")
 
     @property
     def native_value(self):
@@ -138,7 +128,7 @@ class _TotalStoredData(ExtraStoredData):
                 "last_month": self.last_month}
 
 
-class AristonEnergyTotalSensor(CoordinatorEntity, RestoreSensor):
+class AristonEnergyTotalSensor(AristonCoordinatorEntity, RestoreSensor):
     """Monotonic lifetime energy total (kWh) for the HA Energy dashboard.
 
     The gateway reports no lifetime odometer, so this folds the this-month
@@ -146,21 +136,14 @@ class AristonEnergyTotalSensor(CoordinatorEntity, RestoreSensor):
     `energy.fold_total`) and persists it across restarts. Counting starts when
     the entity is first added."""
 
-    _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.ENERGY
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
     _attr_icon = "mdi:fire"
 
-    def __init__(self, stats_coordinator, entry: ConfigEntry, spec: EnergyTotalSpec):
-        super().__init__(stats_coordinator)
+    def __init__(self, stats_coordinator, spec: EnergyTotalSpec):
+        super().__init__(stats_coordinator, f"energy_{spec.key}", spec.name)
         self._spec = spec
-        mac = entry.unique_id or entry.data.get("mac", "unknown")
-        self._attr_unique_id = f"{mac}_energy_{spec.key}"
-        self._attr_name = spec.name
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, mac)}, manufacturer=MANUFACTURER,
-            name=f"Ariston gateway {mac}")
         self._total = 0.0
         self._last = None
         self._last_month = None
@@ -204,24 +187,17 @@ class AristonEnergyTotalSensor(CoordinatorEntity, RestoreSensor):
         super()._handle_coordinator_update()
 
 
-class AristonTProgSensor(CoordinatorEntity, SensorEntity):
+class AristonTProgSensor(AristonCoordinatorEntity, SensorEntity):
     """Read-only view of one heating time program (weekly schedule).
 
     State is the comfort/eco pair; the decoded day profiles are attributes."""
 
-    _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_icon = "mdi:calendar-clock"
 
-    def __init__(self, tprog_coordinator, entry: ConfigEntry, prog_id: int):
-        super().__init__(tprog_coordinator)
+    def __init__(self, tprog_coordinator, prog_id: int):
+        super().__init__(tprog_coordinator, f"tprog_{prog_id}", f"Time program {prog_id}")
         self._prog_id = prog_id
-        mac = entry.unique_id or entry.data.get("mac", "unknown")
-        self._attr_unique_id = f"{mac}_tprog_{prog_id}"
-        self._attr_name = f"Time program {prog_id}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, mac)}, manufacturer=MANUFACTURER,
-            name=f"Ariston gateway {mac}")
 
     def _program(self):
         return (self.coordinator.data or {}).get(self._prog_id)

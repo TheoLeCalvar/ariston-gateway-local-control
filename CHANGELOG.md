@@ -4,6 +4,30 @@ All notable changes to the `ariston_local` Home Assistant integration. Versions
 follow the `manifest.json` version. Format based on
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.14.0] - 2026-10-28
+Internal restructuring; entities and their ids are unchanged.
+### Fixed
+- A failed first poll during setup no longer leaks the MQTT connection: HA
+  retries setup with a fresh client, and the previous one (plus its network
+  thread) is now disconnected instead of piling up on every retry.
+### Changed
+- Per-entry state is a typed `entry.runtime_data` object (`runtime.py`) instead
+  of an untyped `hass.data` dict, and it owns the single write path for
+  override / holiday / time-program actions — the climate, buttons, datetime
+  and services all share it (each write is checked for the device's
+  `response.code` and refreshes what it changed).
+- One generic polling coordinator replaces five near-identical ones; poll
+  intervals are named constants.
+- Services are registered once at integration setup (not per entry), and now
+  report an error if no gateway is loaded instead of silently doing nothing.
+- Setting or clearing an override also refreshes the zone's live setpoint, so
+  the climate card updates right away whichever way the hold was set.
+- Requires Home Assistant 2025.1 or newer.
+### Added
+- HA-level test suite (`tests/`, pytest-homeassistant-custom-component) that
+  sets the integration up against a fake gateway: pins every entity unique id
+  and covers each write path, unload, and setup retry.
+
 ## [0.13.2] - 2026-10-28
 ### Changed
 - Energy sensors now use a **flame icon** (`mdi:fire`) to reflect the gas boiler.
@@ -123,6 +147,7 @@ follow the `manifest.json` version. Format based on
   `Menu/Par` protocol): config flow, number / select / switch / sensor entities,
   and a batched polling coordinator.
 
+[0.14.0]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.14.0
 [0.13.2]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.13.2
 [0.13.1]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.13.1
 [0.13.0]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.13.0

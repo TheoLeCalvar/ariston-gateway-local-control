@@ -2,18 +2,17 @@
 from __future__ import annotations
 
 from homeassistant.components.select import SelectEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import entities
-from .const import DOMAIN
 from .entity import AristonEntity
+from .runtime import AristonConfigEntry
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
+async def async_setup_entry(hass: HomeAssistant, entry: AristonConfigEntry,
                             add_entities: AddEntitiesCallback) -> None:
-    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    coordinator = entry.runtime_data.coordinator
     add_entities(AristonSelect(coordinator, spec) for spec in entities.SELECTS)
 
 

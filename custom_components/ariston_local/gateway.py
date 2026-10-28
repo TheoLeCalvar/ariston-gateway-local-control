@@ -15,8 +15,15 @@ import uuid
 import paho.mqtt.client as mqtt
 
 from . import kura, menu, energy, override, tprog
+from .const import SPECF_HOLIDAY_MODE, SPECF_IDLE_MODE
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _metric(reply: dict, name: str):
+    """A metric's value from a decoded reply ({value, type} or a bare value)."""
+    m = (reply.get("metrics") or {}).get(name)
+    return m.get("value") if isinstance(m, dict) else m
 
 
 class AristonGateway:
@@ -126,25 +133,27 @@ class AristonGateway:
             raise TimeoutError(f"no reply to {verb} {resource} within {timeout}s")
         return reply or {}
 
+    def _put(self, resource, metrics, timeout, body=None) -> int | None:
+        """PUT a resource and return the device's response.code (200 = accepted)."""
+        reply = self._request("PUT", resource, metrics, timeout, body=body)
+        return _metric(reply, "response.code")
+
     # ----------------------------------------------------------------- public API
     def read(self, codes, timeout=8) -> dict:
         """Read parameter codes via Menu/Par. Returns {code: raw_value}."""
         values: dict = {}
         for batch in menu.batch_metrics(codes):
             reply = self._request("GET", "Menu/Par", batch, timeout)
-            for name, m in (reply.get("metrics") or {}).items():
-                if name == "response.code":
-                    continue
-                values[name] = m.get("value") if isinstance(m, dict) else m
+            for name in reply.get("metrics") or {}:
+                if name != "response.code":
+                    values[name] = _metric(reply, name)
         return values
 
     def write(self, code, raw, timeout=8) -> int | None:
         """Write one parameter via PUT Menu/Par. Returns the response.code."""
         if "DEPLOY-V2" in code.upper():
             raise ValueError("refusing to target the DEPLOY-V2 channel")
-        reply = self._request("PUT", "Menu/Par", {code: ("INT32", int(raw))}, timeout)
-        rc = (reply.get("metrics") or {}).get("response.code")
-        return rc.get("value") if isinstance(rc, dict) else rc
+        return self._put("Menu/Par", {code: ("INT32", int(raw))}, timeout)
 
     def read_stats(self, typs=(energy.TYP_HEATING, energy.TYP_DHW), timeout=8) -> dict:
         """Read energy stats via Stat/cWh. Returns {(typ, idx): [Wh values]}."""
@@ -176,9 +185,7 @@ class AristonGateway:
         program = tprog.apply_changes(
             current, comfort=comfort, eco=eco, profiles=profiles)
         body = tprog.build_tprog_body(program)
-        reply = self._request("PUT", "Func/TProg", {}, timeout, body=body)
-        rc = (reply.get("metrics") or {}).get("response.code")
-        rc = rc.get("value") if isinstance(rc, dict) else rc
+        rc = self._put("Func/TProg", {}, timeout, body=body)
         if verify and rc in (None, 200):
             applied = self.read_time_program(prog_id, timeout)
             if applied is None or tprog.build_tprog_body(applied) != body:
@@ -197,38 +204,26 @@ class AristonGateway:
     def set_override(self, zone, temp_c, end_epoch, timeout=8) -> int | None:
         """Set a temporary override: hold temp_c on a zone until end_epoch."""
         body = override.build_der_body(zone, True, temp_c, end_epoch)
-        reply = self._request("PUT", "Func/Der", {}, timeout, body=body)
-        rc = (reply.get("metrics") or {}).get("response.code")
-        return rc.get("value") if isinstance(rc, dict) else rc
+        return self._put("Func/Der", {}, timeout, body=body)
 
     def clear_override(self, zone, timeout=8) -> int | None:
         """Clear a zone's temporary override (revert to schedule now)."""
         body = override.build_der_body(zone, False, 0, 0)
-        reply = self._request("PUT", "Func/Der", {}, timeout, body=body)
-        rc = (reply.get("metrics") or {}).get("response.code")
-        return rc.get("value") if isinstance(rc, dict) else rc
+        return self._put("Func/Der", {}, timeout, body=body)
 
     # ----------------------------------------------------------------- holiday
     def read_special_function(self, timeout=8) -> dict:
         """Read the special function (Func/SpecF): {mode, end}. Mode 4 = holiday."""
         reply = self._request("GET", "Func/SpecF", {}, timeout)
-        m = reply.get("metrics") or {}
-        def g(k):
-            v = m.get(k)
-            return v.get("value") if isinstance(v, dict) else v
-        return {"mode": g("Mode"), "end": g("T")}
+        return {"mode": _metric(reply, "Mode"), "end": _metric(reply, "T")}
 
     def set_holiday(self, end_epoch, timeout=8) -> int | None:
         """Enable holiday/absence mode until end_epoch (absolute Unix seconds)."""
-        reply = self._request(
-            "PUT", "Func/SpecF",
-            {"Mode": ("INT32", 4), "T": ("INT32", int(end_epoch))}, timeout)
-        rc = (reply.get("metrics") or {}).get("response.code")
-        return rc.get("value") if isinstance(rc, dict) else rc
+        return self._put("Func/SpecF", {
+            "Mode": ("INT32", SPECF_HOLIDAY_MODE), "T": ("INT32", int(end_epoch))},
+            timeout)
 
     def clear_holiday(self, timeout=8) -> int | None:
         """Cancel holiday mode (back to idle: Mode 1, T 0)."""
-        reply = self._request(
-            "PUT", "Func/SpecF", {"Mode": ("INT32", 1), "T": ("INT32", 0)}, timeout)
-        rc = (reply.get("metrics") or {}).get("response.code")
-        return rc.get("value") if isinstance(rc, dict) else rc
+        return self._put("Func/SpecF", {
+            "Mode": ("INT32", SPECF_IDLE_MODE), "T": ("INT32", 0)}, timeout)

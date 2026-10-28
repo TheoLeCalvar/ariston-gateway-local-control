@@ -103,6 +103,19 @@ parameter (`6.16.0`) is deliberately **not** exposed (disabling it would cut the
 gateway off). Values are range-checked by each entity. A write returns the
 device's `response.code` (200 = accepted), logged on anything else.
 
+## Code layout
+
+- **Protocol layer** — `kura.py` (KuraPayload protobuf), `menu.py` (parameter
+  map, scaling), `energy.py`, `override.py`, `tprog.py`, `entities.py` (the
+  entity catalog). Pure Python, no Home Assistant imports.
+- **`gateway.py`** — the blocking MQTT request/reply client on top of it.
+- **`coordinator.py`** — one polling coordinator per gateway resource.
+- **`runtime.py`** — each entry's `runtime_data`: the gateway, its coordinators,
+  HA-side settings, and the shared write actions (override, holiday, time
+  program) used by entities and services alike.
+- **Platform modules** (`climate.py`, `sensor.py`, …) — map that onto HA
+  entities; `entity.py` holds the shared device identity / unique-id scheme.
+
 ## Tests
 
 The protocol layer is pure Python (no HA, no paho):
@@ -111,9 +124,24 @@ The protocol layer is pure Python (no HA, no paho):
 python3 -I custom_components/ariston_local/tests/test_protocol.py
 ```
 
+The HA wiring is tested against a fake gateway with
+`pytest-homeassistant-custom-component` (from the repo root, in a venv):
+
+```bash
+pip install -r requirements_test.txt && pytest
+```
+
+`tests/test_integration.py` pins every entity's unique id — if it fails after a
+change, that change would rename entities (and orphan their history) for
+existing installs.
+
 ## Status
 
 See [`CHANGELOG.md`](../../CHANGELOG.md) for the full per-version history.
+
+Version 0.14.0 — internal restructuring (typed runtime data, one shared write
+path, generic coordinator) plus an HA-level test suite; fixes an MQTT
+connection leak on setup retries. Entities are unchanged. Needs HA ≥ 2025.1.
 
 Version 0.13.0 — lifetime energy totals (monotonic `total_increasing` counters)
 for the Energy dashboard; the month/trailing-year figures become diagnostic

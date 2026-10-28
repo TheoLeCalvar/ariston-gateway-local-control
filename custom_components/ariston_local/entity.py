@@ -1,32 +1,58 @@
-"""Shared base entity for Ariston local."""
+"""Shared entity plumbing: device identity and the base entity classes."""
 from __future__ import annotations
 
-from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.entity import DeviceInfo, Entity
+from homeassistant.helpers.update_coordinator import (
+    CoordinatorEntity,
+    DataUpdateCoordinator,
+)
 
 from . import menu
 from .const import DOMAIN, MANUFACTURER
 from .coordinator import AristonCoordinator
 
 
-class AristonEntity(CoordinatorEntity[AristonCoordinator]):
-    """Base: binds an entity to one menu code (read via U_<menu>)."""
+def entry_mac(entry: ConfigEntry) -> str:
+    """The gateway MAC that keys this entry's device and unique ids."""
+    return entry.unique_id or entry.data.get("mac", "unknown")
 
-    _attr_has_entity_name = True
+
+def identify(entity: Entity, entry: ConfigEntry, key: str, name: str) -> None:
+    """Give an entity its unique id (`<mac>_<key>`), name and gateway device.
+
+    Every entity of the integration hangs off the one gateway device. The
+    unique-id scheme is load-bearing: changing a key orphans that entity's
+    history for existing installs (see tests/test_integration.py)."""
+    mac = entry_mac(entry)
+    entity._attr_has_entity_name = True
+    entity._attr_unique_id = f"{mac}_{key}"
+    entity._attr_name = name
+    entity._attr_device_info = DeviceInfo(
+        identifiers={(DOMAIN, mac)},
+        manufacturer=MANUFACTURER,
+        name=f"Ariston gateway {mac}",
+    )
+
+
+class AristonCoordinatorEntity(CoordinatorEntity):
+    """Base for an entity fed by one of the entry's coordinators."""
+
+    def __init__(self, coordinator: DataUpdateCoordinator, key: str, name: str):
+        super().__init__(coordinator)
+        identify(self, coordinator.config_entry, key, name)
+
+
+class AristonEntity(AristonCoordinatorEntity):
+    """Base: binds an entity to one menu code (read via U_<menu> or T_<menu>)."""
+
+    coordinator: AristonCoordinator
 
     def __init__(self, coordinator: AristonCoordinator, menu_num: str, name: str,
                  prefix: str = "U_"):
-        super().__init__(coordinator)
         self._menu = menu_num
         self._code = menu.code_for(menu_num, prefix)
-        mac = coordinator.entry.unique_id or coordinator.entry.data.get("mac", "unknown")
-        self._attr_unique_id = f"{mac}_{self._code}"
-        self._attr_name = name
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, mac)},
-            manufacturer=MANUFACTURER,
-            name=f"Ariston gateway {mac}",
-        )
+        super().__init__(coordinator, self._code, name)
 
     @property
     def _raw(self):

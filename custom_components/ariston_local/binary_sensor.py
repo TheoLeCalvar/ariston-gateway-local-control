@@ -1,4 +1,4 @@
-"""Binary sensors: per-zone temporary-override active state."""
+"""Binary sensors: burner/status reads, holiday mode, per-zone override active."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -7,26 +7,27 @@ from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import entities
-from .const import DOMAIN, MANUFACTURER, SPECF_HOLIDAY_MODE
-from .entity import AristonEntity
+from .const import SPECF_HOLIDAY_MODE
+from .entity import AristonCoordinatorEntity, AristonEntity
+from .runtime import AristonConfigEntry
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
+def _iso(epoch: int) -> str:
+    return datetime.fromtimestamp(epoch, tz=timezone.utc).isoformat()
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: AristonConfigEntry,
                             add_entities: AddEntitiesCallback) -> None:
-    store = hass.data[DOMAIN][entry.entry_id]
-    override = store["override"]
-    coordinator = store["coordinator"]
-    ents = [AristonOverrideSensor(override, entry, z) for z in override.zones]
-    ents += [AristonStatusBinarySensor(coordinator, spec)
+    runtime = entry.runtime_data
+    ents: list[BinarySensorEntity] = [
+        AristonOverrideSensor(runtime.override, z) for z in runtime.active_zones]
+    ents += [AristonStatusBinarySensor(runtime.coordinator, spec)
              for spec in entities.BINARY_SENSORS]
-    ents.append(AristonHolidaySensor(store["holiday"], entry))
+    ents.append(AristonHolidaySensor(runtime.holiday))
     add_entities(ents)
 
 
@@ -44,20 +45,13 @@ class AristonStatusBinarySensor(AristonEntity, BinarySensorEntity):
         return None if raw is None else bool(raw)
 
 
-class AristonHolidaySensor(CoordinatorEntity, BinarySensorEntity):
+class AristonHolidaySensor(AristonCoordinatorEntity, BinarySensorEntity):
     """Holiday / absence mode active (Func/SpecF Mode 4), with its end time."""
 
-    _attr_has_entity_name = True
+    _attr_icon = "mdi:bag-suitcase"
 
-    def __init__(self, coordinator, entry: ConfigEntry):
-        super().__init__(coordinator)
-        mac = entry.unique_id or entry.data.get("mac", "unknown")
-        self._attr_unique_id = f"{mac}_holiday"
-        self._attr_name = "Holiday mode"
-        self._attr_icon = "mdi:bag-suitcase"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, mac)}, manufacturer=MANUFACTURER,
-            name=f"Ariston gateway {mac}")
+    def __init__(self, coordinator):
+        super().__init__(coordinator, "holiday", "Holiday mode")
 
     @property
     def is_on(self):
@@ -69,22 +63,15 @@ class AristonHolidaySensor(CoordinatorEntity, BinarySensorEntity):
         data = self.coordinator.data or {}
         if data.get("mode") != SPECF_HOLIDAY_MODE or not data.get("end"):
             return None
-        return {"until": datetime.fromtimestamp(
-            data["end"], tz=timezone.utc).isoformat()}
+        return {"until": _iso(data["end"])}
 
 
-class AristonOverrideSensor(CoordinatorEntity, BinarySensorEntity):
-    _attr_has_entity_name = True
+class AristonOverrideSensor(AristonCoordinatorEntity, BinarySensorEntity):
+    """A zone's temporary override (dérogation, Func/Der) is running."""
 
-    def __init__(self, coordinator, entry: ConfigEntry, zone: int):
-        super().__init__(coordinator)
+    def __init__(self, coordinator, zone: int):
+        super().__init__(coordinator, f"override_z{zone}", f"Zone {zone} override active")
         self._zone = zone
-        mac = entry.unique_id or entry.data.get("mac", "unknown")
-        self._attr_unique_id = f"{mac}_override_z{zone}"
-        self._attr_name = f"Zone {zone} override active"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, mac)}, manufacturer=MANUFACTURER,
-            name=f"Ariston gateway {mac}")
 
     @property
     def _info(self):
@@ -102,6 +89,5 @@ class AristonOverrideSensor(CoordinatorEntity, BinarySensorEntity):
             return None
         attrs = {"target_temperature": info.get("temp")}
         if info.get("end"):
-            attrs["until"] = datetime.fromtimestamp(
-                info["end"], tz=timezone.utc).isoformat()
+            attrs["until"] = _iso(info["end"])
         return attrs

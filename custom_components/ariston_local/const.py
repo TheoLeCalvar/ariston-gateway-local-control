@@ -32,6 +32,12 @@ TPROG_IDS = (1, 7)
 # on the thermostat itself surfaces in HA within a few minutes.
 TPROG_SCAN_INTERVAL = 300  # seconds
 
+# The other resources change rarely (or are slow for the gateway to answer, like
+# Stat/cWh), so they poll on their own slower clocks than the main Menu/Par read.
+STATS_SCAN_INTERVAL = 600     # Stat/cWh energy
+OVERRIDE_SCAN_INTERVAL = 120  # Func/Der per zone
+HOLIDAY_SCAN_INTERVAL = 300   # Func/SpecF
+
 # Special function (Func/SpecF). Mode 4 = holiday/vacances (hold until T, an
 # absolute end epoch); Mode 1 = idle/none (observed when nothing is active).
 SPECF_HOLIDAY_MODE = 4

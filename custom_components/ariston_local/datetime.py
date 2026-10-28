@@ -6,42 +6,31 @@ Entities/Tile card, so no custom Lovelace card is needed.
 """
 from __future__ import annotations
 
-import logging
 from datetime import datetime, timezone
 
 from homeassistant.components.datetime import DateTimeEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MANUFACTURER, SPECF_HOLIDAY_MODE
+from .const import SPECF_HOLIDAY_MODE
+from .entity import AristonCoordinatorEntity
+from .runtime import AristonConfigEntry, AristonRuntimeData
 
-_LOGGER = logging.getLogger(__name__)
 
-
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
+async def async_setup_entry(hass: HomeAssistant, entry: AristonConfigEntry,
                             add_entities: AddEntitiesCallback) -> None:
-    store = hass.data[DOMAIN][entry.entry_id]
-    add_entities([AristonHolidayDateTime(store["holiday"], entry)])
+    add_entities([AristonHolidayDateTime(entry.runtime_data)])
 
 
-class AristonHolidayDateTime(CoordinatorEntity, DateTimeEntity):
+class AristonHolidayDateTime(AristonCoordinatorEntity, DateTimeEntity):
     """Holiday end date/time. Reads the active holiday end; setting it enables
     holiday mode until the chosen moment."""
 
-    _attr_has_entity_name = True
     _attr_icon = "mdi:bag-suitcase"
 
-    def __init__(self, coordinator, entry: ConfigEntry):
-        super().__init__(coordinator)
-        mac = entry.unique_id or entry.data.get("mac", "unknown")
-        self._attr_unique_id = f"{mac}_holiday_until"
-        self._attr_name = "Holiday until"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, mac)}, manufacturer=MANUFACTURER,
-            name=f"Ariston gateway {mac}")
+    def __init__(self, runtime: AristonRuntimeData):
+        super().__init__(runtime.holiday, "holiday_until", "Holiday until")
+        self._runtime = runtime
 
     @property
     def native_value(self) -> datetime | None:
@@ -51,9 +40,4 @@ class AristonHolidayDateTime(CoordinatorEntity, DateTimeEntity):
         return datetime.fromtimestamp(data["end"], tz=timezone.utc)
 
     async def async_set_value(self, value: datetime) -> None:
-        end = int(value.timestamp())
-        gw = self.coordinator.gateway
-        rc = await self.hass.async_add_executor_job(gw.set_holiday, end)
-        if rc not in (None, 200):
-            _LOGGER.warning("set_holiday returned response.code=%s", rc)
-        await self.coordinator.async_request_refresh()
+        await self._runtime.async_set_holiday(int(value.timestamp()))
