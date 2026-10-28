@@ -21,10 +21,13 @@ Examples:
 """
 import argparse
 import copy
+import os
 import sys
 import time
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import kura_client
+import _component  # noqa: F401  (tprog comes from the component)
 import tprog
 
 RESOURCE = "Func/TProg"

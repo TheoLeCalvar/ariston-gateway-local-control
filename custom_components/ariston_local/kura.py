@@ -1,7 +1,13 @@
 """Eurotech Kura/Kapua payload codec (self-contained, stdlib only).
 
-Ported from the project's tools/kura_{encode,decode}.py so the Home Assistant
-component carries no dependency on the repo's tools. Keep the two in sync.
+The gateway speaks Google-Protobuf `KuraPayload` messages. The decoder is
+tolerant of the field-encoding variants seen on real traffic (e.g. int metrics
+sent as plain varints rather than sfixed32). The encoder writes ints as plain
+varints (what the schema's int32/int64 fields mean on the wire), so encoded
+payloads look like the device's own.
+
+This is the single copy of the codec: the repo's stdlib CLI tools
+(tools/kura_{encode,decode}.py) import it rather than carrying their own.
 """
 from __future__ import annotations
 
@@ -152,6 +158,8 @@ def decode_payload(data: bytes) -> dict:
                 out["metrics"][name] = {"type": tname, "value": value}
         elif field == 5001 and wire == 2:
             out["body"] = val.hex()
+        elif field == 2 and wire == 2:  # position (rarely used here)
+            out["position"] = val.hex()
     return out
 
 

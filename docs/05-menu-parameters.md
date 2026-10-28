@@ -41,7 +41,8 @@ menu **8.4.0**, `C_U_6.9.0` the `C_` variant of `U_6.9.0`.
 - A few are plain integers (`U_6.16.5` signal strength = 70) or other units
   (`U_6.9.5.1` anti-legionella frequency: raw 28800 → 480 h, i.e. ÷60).
 
-`tools/menu_params.json` holds the map (menu number → label, French label, unit,
+`custom_components/ariston_local/menu_params.json` holds the map (shared with the
+tools) (menu number → label, French label, unit,
 scale, enum), seeded from the capture + screenshot. Extend it as you confirm more.
 
 ## Reading parameters (Mode A)

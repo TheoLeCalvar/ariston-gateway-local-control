@@ -233,6 +233,20 @@ class StatDecode(unittest.TestCase):
         self.assertEqual(series, [{"typ": 6, "idx": 4, "values": [0, 100, 200]}])
 
 
+class SharedProtocol(unittest.TestCase):
+    """The tools carry no protocol copy: they re-export the component's modules."""
+
+    def test_tools_use_component_modules(self):
+        import _component
+        import stat_decode
+        import tprog
+        for fn in (kura_decode.decode_payload, kura_encode.encode_payload,
+                   stat_decode.decode_stat_body, menu_params.parse_code,
+                   tprog.decode_tprog_body):
+            self.assertEqual(os.path.dirname(fn.__code__.co_filename),
+                             _component.COMPONENT_DIR, fn.__qualname__)
+
+
 class WriteMenu(unittest.TestCase):
     def test_put_matches_captured_packet(self):
         # the real captured PUT of U_3 = 1

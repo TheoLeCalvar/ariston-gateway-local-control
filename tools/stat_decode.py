@@ -25,49 +25,14 @@ import json
 import argparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import kura_decode as kd
+import _component  # noqa: E402,F401
+# the decoder lives in the component (energy.py); this tool is its CLI
+from energy import (  # noqa: E402,F401
+    decode_stat_series as decode_stat_body, decode_stat_payload,
+)
 
 # length of a series -> a human guess at its period (confirm against the app)
 PERIOD_BY_LEN = {24: "hourly(24)", 13: "monthly(13)", 12: "monthly(12)", 7: "daily(7)"}
-
-
-def _fields(buf):
-    return list(kd._read_fields(buf))
-
-
-def _varints(buf):
-    vals, i = [], 0
-    while i < len(buf):
-        v, i = kd._read_varint(buf, i)
-        vals.append(v)
-    return vals
-
-
-def decode_stat_body(body: bytes) -> list:
-    """Return [{"typ", "idx", "values"}] from a Stat/cWh body."""
-    out = []
-    for f, w, v in _fields(body):
-        if f == 1 and w == 2:
-            idx = typ = None
-            arr = b""
-            for sf, sw, sv in _fields(v):
-                if sf == 1 and sw == 0:
-                    idx = sv
-                elif sf == 2 and sw == 0:
-                    typ = sv
-                elif sf == 3 and sw == 2:
-                    arr = sv
-            out.append({"typ": typ, "idx": idx, "values": _varints(arr)})
-    return out
-
-
-def decode_stat_payload(data: bytes) -> list:
-    """Decode a full Stat/cWh reply payload into its per-Typ/idx series."""
-    body = None
-    for f, w, v in _fields(data):
-        if f == 5001 and w == 2:
-            body = v
-    return decode_stat_body(body) if body else []
 
 
 def _report(series, as_json):

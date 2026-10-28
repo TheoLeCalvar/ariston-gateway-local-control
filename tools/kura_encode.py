@@ -4,6 +4,7 @@
 Dependency-free (stdlib only). Integers are written as plain varints, which is
 what the Ariston gateway itself sends (and what the Kura schema's int32/int64
 fields mean on the wire), so encoded payloads look like the device's own.
+The codec itself is custom_components/ariston_local/kura.py; this is its CLI.
 
 Library use:
     from kura_encode import encode_payload
@@ -14,91 +15,18 @@ CLI use (writes raw bytes to stdout, or hex with --hex):
     kura_encode.py --metric request.id=abc --metric T:DOUBLE=21.5 > p.bin
     kura_encode.py --json '{"request.id": "abc"}' --hex
 """
+import os
 import sys
 import json
-import time
-import struct
 import argparse
 
-TYPES = {"DOUBLE": 0, "FLOAT": 1, "INT64": 2, "INT32": 3, "BOOL": 4, "STRING": 5, "BYTES": 6}
-
-
-def _varint(v):
-    if v < 0:
-        v += 1 << 64  # protobuf int32/int64: two's complement, 10 bytes
-    out = bytearray()
-    while True:
-        b = v & 0x7F
-        v >>= 7
-        if v:
-            out.append(b | 0x80)
-        else:
-            out.append(b)
-            return bytes(out)
-
-
-def _key(field, wire):
-    return _varint((field << 3) | wire)
-
-
-def _ld(field, data):
-    return _key(field, 2) + _varint(len(data)) + data
-
-
-def _infer_type(value):
-    if isinstance(value, bool):
-        return "BOOL"
-    if isinstance(value, int):
-        return "INT32" if -(1 << 31) <= value < (1 << 31) else "INT64"
-    if isinstance(value, float):
-        return "DOUBLE"
-    if isinstance(value, (bytes, bytearray)):
-        return "BYTES"
-    if isinstance(value, str):
-        return "STRING"
-    raise TypeError(f"cannot infer Kura type for {value!r}")
-
-
-def encode_metric(name, value, vtype=None):
-    vtype = vtype or _infer_type(value)
-    t = TYPES[vtype]
-    out = _ld(1, name.encode("utf-8")) + _key(2, 0) + _varint(t)
-    if vtype == "DOUBLE":
-        out += _key(3, 1) + struct.pack("<d", float(value))
-    elif vtype == "FLOAT":
-        out += _key(4, 5) + struct.pack("<f", float(value))
-    elif vtype == "INT64":
-        out += _key(5, 0) + _varint(int(value))
-    elif vtype == "INT32":
-        out += _key(6, 0) + _varint(int(value))
-    elif vtype == "BOOL":
-        out += _key(7, 0) + _varint(1 if value else 0)
-    elif vtype == "STRING":
-        out += _ld(8, str(value).encode("utf-8"))
-    elif vtype == "BYTES":
-        out += _ld(9, bytes(value))
-    return out
-
-
-def encode_payload(metrics=None, timestamp=None, body=None):
-    """Return KuraPayload bytes.
-
-    metrics: {name: value} or {name: (TYPE, value)}; insertion order is kept.
-    timestamp: ms since epoch; defaults to now. Pass False to omit it.
-    """
-    out = b""
-    if timestamp is None:
-        timestamp = int(time.time() * 1000)
-    if timestamp is not False:
-        out += _key(1, 0) + _varint(int(timestamp))
-    for name, value in (metrics or {}).items():
-        vtype = None
-        if isinstance(value, tuple):
-            vtype, value = value
-        out += _ld(5000, encode_metric(name, value, vtype))
-    if body is not None:
-        out += _ld(5001, bytes(body))
-    return out
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _component  # noqa: E402,F401
+# the codec lives in the component; re-exported for the tools that import it
+from kura import (  # noqa: E402,F401
+    _TYPES as TYPES, _varint, _key, _ld, _infer_type,
+    _encode_metric as encode_metric, encode_payload,
+)
 
 
 def _parse_metric_arg(arg):

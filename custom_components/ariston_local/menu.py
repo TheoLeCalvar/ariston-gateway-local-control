@@ -1,7 +1,8 @@
 """Installer-menu parameter map and scaling (self-contained, stdlib only).
 
-Ported from tools/menu_params.py + menu_params.json. Decodes U_/T_/C_ codes,
-applies/undoes scaling, and batches codes into Menu/Par P1..P16 request metrics.
+Decodes U_/T_/C_ codes, applies/undoes scaling, and batches codes into Menu/Par
+P1..P16 request metrics. menu_params.json (next to this file) is the one copy of
+the map; tools/menu_params.py is its CLI.
 """
 from __future__ import annotations
 

@@ -4,6 +4,14 @@ All notable changes to the `ariston_local` Home Assistant integration. Versions
 follow the `manifest.json` version. Format based on
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+### Changed
+- The repo's CLI tools (`tools/`) now import the integration's protocol modules
+  (`kura`, `menu`, `energy`, `tprog`, and `menu_params.json`) instead of keeping
+  their own copies. The Kura decoder now also surfaces a payload's `position`
+  field, and `energy` gains the lossless `decode_stat_series()` /
+  `decode_stat_payload()` views the tools print.
+
 ## [0.14.0] - 2026-10-28
 Internal restructuring; entities and their ids are unchanged.
 ### Fixed

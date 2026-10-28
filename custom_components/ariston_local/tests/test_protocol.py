@@ -28,6 +28,11 @@ class Kura(unittest.TestCase):
         data = kura.encode_payload({"x": ("INT32", -7)}, timestamp=False)
         self.assertEqual(kura.decode_payload(data)["metrics"]["x"]["value"], -7)
 
+    def test_position_kept(self):
+        # field 2 (KuraPosition) is rare but surfaced as hex, not dropped
+        out = kura.decode_payload(bytes.fromhex("1203aabbcc"))
+        self.assertEqual(out["position"], "aabbcc")
+
 
 class Menu(unittest.TestCase):
     def test_map_loaded(self):
@@ -116,6 +121,17 @@ class Stat(unittest.TestCase):
         body = bytes([0x0a, len(entry)]) + entry
         series = energy.decode_stat_body(body)
         self.assertEqual(series, {(6, 4): [0, 100, 200]})
+
+    def test_series_is_lossless_and_payload_decodes(self):
+        good = bytes.fromhex("0804" "1006" "1a04" "0064c801")
+        no_typ = bytes.fromhex("0801" "1a01" "05")  # idx1, no Typ
+        body = bytes([0x0a, len(good)]) + good + bytes([0x0a, len(no_typ)]) + no_typ
+        series = energy.decode_stat_series(body)
+        self.assertEqual(series, [{"typ": 6, "idx": 4, "values": [0, 100, 200]},
+                                  {"typ": None, "idx": 1, "values": [5]}])
+        self.assertEqual(energy.decode_stat_body(body), {(6, 4): [0, 100, 200]})
+        payload = kura.encode_payload({"response.code": 200}, timestamp=False, body=body)
+        self.assertEqual(energy.decode_stat_payload(payload), series)
 
     def test_kwh(self):
         self.assertEqual(energy.kwh([0, 124652, 487552]), 612.204)
