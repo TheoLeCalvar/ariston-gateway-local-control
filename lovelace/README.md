@@ -1,16 +1,14 @@
 # Ariston schedule card
 
 A dependency-free Lovelace card that shows one heating time program
-(`Func/TProg`) as a weekly **comfort / eco grid** and writes edits back to the
-boiler through the `ariston_local.set_time_program` service.
+(`Func/TProg`) as a weekly **comfort / eco** overview and edits it, writing back
+to the boiler through the `ariston_local.set_time_program` service.
 
 It is **local-first and boiler-owned**: the card never stores the schedule. It
 renders whatever the integration last read from the boiler (the *Time program*
 sensor) and, on **Save**, pushes your changes down. Edit the schedule on the
 thermostat itself and the card catches up on the next poll (≈5 min). If HA is
 off, the boiler keeps running its own schedule — nothing here changes that.
-
-![grid: shaded = comfort, blank = eco, click/drag to edit]
 
 ## Install
 
@@ -25,30 +23,50 @@ off, the boiler keeps running its own schedule — nothing here changes that.
    ```yaml
    type: custom:ariston-schedule-card
    entity: sensor.ariston_gateway_aabbccddeeff_time_program_1
-   program_id: 1
-   title: Heating schedule — zone 1
+   title: Programme chauffage   # optional
+   show_setpoints: true         # optional, see below
    ```
 
-   `entity` is the *Time program* diagnostic sensor the integration creates (one
-   per `Func/TProg` id). `program_id` is that id (defaults to the trailing number
-   of the entity id if omitted). Add a second card with `program_id: 7` for the
-   other program.
+   `entity` is the *Time program* sensor the integration creates (one per
+   `Func/TProg` id). `program_id` defaults to the entity id's trailing number;
+   set it explicitly if yours differs. Add a second card for program 7.
+
+   **Updating:** after copying a new version over the old file, browsers may
+   keep the cached one — reload with cache bypass, or bump the resource URL
+   (`/local/ariston-schedule-card.js?v=2`).
 
 ## Using it
 
-- **Shaded** cell = comfort period, **blank** = eco. Click a cell to toggle, or
-  click-and-drag to paint a range.
-- Set **Comfort °C / Eco °C** for the program.
-- **Save to boiler** calls `set_time_program`: the integration reads the current
-  program, applies your grid, and writes it back (read-modify-write, so it never
-  pushes a stale copy), then re-reads to confirm it landed.
-- **Revert** discards unsaved edits and re-syncs from the boiler.
+- **Overview** — one bar per day: comfort periods in the heating colour, eco
+  as the faint background, with the times written underneath. Today is
+  highlighted with a "now" marker, and the header says what's running
+  ("Confort jusqu'à 08:30" / "Éco jusqu'à 17:30").
+- **Edit a day** — tap it. Each comfort period is a start → end pair of time
+  pickers (15-minute steps, touch-friendly); ✕ removes one, **Ajouter une
+  plage** adds 2 h in the day's largest free gap. Overlapping periods merge
+  when you leave the field.
+- **Copy** the open day to Mon–Fri, the weekend, the whole week, or a single
+  day.
+- **Setpoints** — comfort/eco steppers (0.5 °C) for the program's
+  temperatures. Set `show_setpoints: false` to hide them, e.g. when the zone's
+  comfort/eco number entities sit next to the card.
+- **Save / Cancel** appear only once something changed (edited days get a dot).
+  Save calls `set_time_program` (read-modify-write: the integration reads the
+  current program, applies your week, writes it back and re-reads it); the card
+  keeps showing your version until the boiler reports it, then confirms. If the
+  schedule changes on the boiler while you edit, the card says so: Save
+  overwrites it, Cancel reloads the boiler's version.
 
-## Resolution
+Text follows the HA language (French or English).
 
-The grid is **30-minute** (48 cells/day) — real Ariston schedules sit on
-`:00`/`:30` boundaries, so this covers normal use. The underlying program and
-service support 15-minute slots; for a finer edit, call the service directly:
+## Limits
+
+- Periods end at **23:45** at the latest: a period running to midnight would
+  need a slot-96 transition that hasn't been confirmed on hardware.
+- The card edits the 7-day week as a whole; days with identical periods are
+  sent as one profile, as the boiler stores them.
+
+For scripted changes, call the service directly:
 
 ```yaml
 service: ariston_local.set_time_program
@@ -62,8 +80,3 @@ data:
     - days: [6, 7]
       windows: [["07:00", "23:00"]]
 ```
-
-## Status
-
-A functional starting point, not a polished HACS card: plain `HTMLElement`, no
-build step. Extend as needed (per-day copy, presets, a 15-min toggle).

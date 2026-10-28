@@ -4,6 +4,23 @@ All notable changes to the `ariston_local` Home Assistant integration. Versions
 follow the `manifest.json` version. Format based on
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.15.0] - 2026-10-28
+### Fixed
+- The climate card caught up slowly after a hold or holiday change (up to a
+  minute, measured in HA history). Holiday set/clear now re-reads the active
+  setpoint and hold state too, every hold/holiday change re-polls again after
+  5 s and 15 s (the boiler applies some changes a few seconds late), the climate
+  re-renders when the hold/holiday state refreshes, and a running hold's target
+  temperature shows immediately.
+### Changed
+- **Schedule card redesigned** (`lovelace/ariston-schedule-card.js`): a weekly
+  overview with written-out times, a "now" marker and status line; per-day
+  editing with touch-friendly time pickers at 15-min resolution (the old grid
+  was mouse-only, 30-min); copy a day to Mon–Fri / weekend / week / one day;
+  Save/Cancel only when something changed, with a warning if the boiler's
+  schedule changed meanwhile; French/English. New option `show_setpoints`.
+  Copy the new file to `config/www/` to update.
+
 ## [0.14.0] - 2026-10-28
 Internal restructuring; entities and their ids are unchanged.
 ### Fixed
@@ -147,6 +164,7 @@ Internal restructuring; entities and their ids are unchanged.
   `Menu/Par` protocol): config flow, number / select / switch / sensor entities,
   and a batched polling coordinator.
 
+[0.15.0]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.15.0
 [0.14.0]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.14.0
 [0.13.2]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.13.2
 [0.13.1]: https://github.com/TheoLeCalvar/ariston-gateway-local-control/releases/tag/v0.13.1

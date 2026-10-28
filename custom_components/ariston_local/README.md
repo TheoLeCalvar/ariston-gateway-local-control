@@ -79,7 +79,7 @@ catalog in [`entities.py`](entities.py):
   structured form. The boiler owns the schedule and runs it even if HA is down —
   this is a reflection of it, polled every 5 min so a thermostat-side edit shows
   up here. To *change* it, use the `set_time_program` service (read-modify-write,
-  confirmed on hardware) or the weekly-grid **Lovelace card** in [`lovelace/`](../../lovelace/).
+  confirmed on hardware) or the weekly **schedule card** in [`lovelace/`](../../lovelace/).
 
 ## Services
 

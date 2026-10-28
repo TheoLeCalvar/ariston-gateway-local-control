@@ -20,6 +20,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import entities, menu
+from .const import SPECF_HOLIDAY_MODE
 from .entity import AristonCoordinatorEntity
 from .runtime import AristonConfigEntry, AristonRuntimeData
 
@@ -54,6 +55,24 @@ class AristonClimate(AristonCoordinatorEntity, ClimateEntity):
         self._attr_max_temp = spec.max_temp
         self._attr_target_temperature_step = spec.step
 
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        # Holds (Func/Der) and holiday (Func/SpecF) are polled separately but
+        # change what this entity shows, so re-render when either refreshes.
+        for other in (self._runtime.override, self._runtime.holiday):
+            self.async_on_remove(
+                other.async_add_listener(self._handle_coordinator_update))
+
+    def _hold_temp(self):
+        """The running hold's target for this zone, unless holiday overrides it."""
+        holiday = self._runtime.holiday.data or {}
+        if holiday.get("mode") == SPECF_HOLIDAY_MODE:
+            return None
+        info = (self._runtime.override.data or {}).get(self._spec.zone)
+        if info and info.get("enabled"):
+            return info.get("temp")
+        return None
+
     def _value(self, code: str, menu_num: str):
         raw = (self.coordinator.data or {}).get(code)
         if raw is None:
@@ -67,6 +86,11 @@ class AristonClimate(AristonCoordinatorEntity, ClimateEntity):
 
     @property
     def target_temperature(self):
+        # A hold's temperature is known the moment Func/Der reports it; the
+        # active-setpoint read (T_) can lag it by a poll.
+        hold = self._hold_temp()
+        if hold is not None:
+            return hold
         return self._value(self._setpoint_code, self._spec.setpoint_menu)
 
     @property

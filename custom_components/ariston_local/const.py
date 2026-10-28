@@ -38,6 +38,12 @@ STATS_SCAN_INTERVAL = 600     # Stat/cWh energy
 OVERRIDE_SCAN_INTERVAL = 120  # Func/Der per zone
 HOLIDAY_SCAN_INTERVAL = 300   # Func/SpecF
 
+# The boiler applies some changes a few seconds after acknowledging them (seen
+# in HA history: clearing a hold or toggling holiday left the active setpoint
+# stale on the immediate re-read). After such a write, re-poll again at these
+# delays so the climate catches up without waiting for the next regular poll.
+SETTLE_REFRESH_DELAYS = (5, 15)  # seconds
+
 # Special function (Func/SpecF). Mode 4 = holiday/vacances (hold until T, an
 # absolute end epoch); Mode 1 = idle/none (observed when nothing is active).
 SPECF_HOLIDAY_MODE = 4

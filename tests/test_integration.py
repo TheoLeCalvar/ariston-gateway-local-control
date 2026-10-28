@@ -14,7 +14,11 @@ from unittest.mock import patch
 import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.helpers import entity_registry as er
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from homeassistant.util import dt as dt_util
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 
 from custom_components.ariston_local.const import DOMAIN
 
@@ -49,7 +53,9 @@ class FakeGateway:
 
     def __init__(self, host, port, mac, **kwargs):
         self.calls: list[tuple] = []
-        self.fail_reads = False
+        self.reads = 0                      # Menu/Par polls
+        self.holds: dict[int, dict] = {}    # zone -> active Func/Der hold
+        self.holiday = {"mode": 1, "end": 0}
         FakeGateway.instances.append(self)
 
     # lifecycle
@@ -61,16 +67,16 @@ class FakeGateway:
 
     # reads
     def read(self, codes, timeout=8):
-        if self.fail_reads:
-            raise TimeoutError("no reply")
-        return {code: 200 for code in codes}
+        self.reads += 1
+        return {code: 200 for code in codes}   # setpoints decode to 20.0 °C
 
     def read_stats(self, timeout=8):
         return {(6, 2): [1000, 2000], (9, 2): [500],
                 (6, 4): [3000, 4000], (9, 4): [700]}
 
     def read_override(self, zone=1, timeout=8):
-        return {"zone": zone, "enabled": False, "temp": None, "end": None}
+        return self.holds.get(
+            zone, {"zone": zone, "enabled": False, "temp": None, "end": None})
 
     def read_time_program(self, prog_id, timeout=8):
         return {"id": prog_id, "slot_minutes": 15, "comfort": 20.0, "eco": 16.0,
@@ -78,7 +84,7 @@ class FakeGateway:
                               "windows": [["06:30", "08:30"]]}]}
 
     def read_special_function(self, timeout=8):
-        return {"mode": 1, "end": 0}
+        return dict(self.holiday)
 
     # writes
     def write(self, code, raw, timeout=8):
@@ -88,18 +94,23 @@ class FakeGateway:
     def set_override(self, zone, temp_c, end_epoch, timeout=8):
         self.calls.append(("set_override", zone, temp_c))
         self.override_end = end_epoch
+        self.holds[zone] = {"zone": zone, "enabled": True, "temp": temp_c,
+                            "end": end_epoch}
         return 200
 
     def clear_override(self, zone, timeout=8):
         self.calls.append(("clear_override", zone))
+        self.holds.pop(zone, None)
         return 200
 
     def set_holiday(self, end_epoch, timeout=8):
         self.calls.append(("set_holiday", end_epoch))
+        self.holiday = {"mode": 4, "end": end_epoch}
         return 200
 
     def clear_holiday(self, timeout=8):
         self.calls.append(("clear_holiday",))
+        self.holiday = {"mode": 1, "end": 0}
         return 200
 
     def set_time_program(self, prog_id, *, comfort=None, eco=None, profiles=None,
@@ -218,6 +229,49 @@ async def test_services(hass, fake_gateway):
     assert ("set_holiday", int(until.timestamp())) in gw.calls
     assert ("clear_holiday",) in gw.calls
     assert ("set_time_program", 1, 20.5, None) in gw.calls
+
+
+async def test_climate_shows_hold_target_immediately(hass, fake_gateway):
+    """The hold's temperature shows before the active-setpoint read catches up."""
+    entry, gw = await _setup(hass)
+    climate = _entity_id(hass, entry, f"{MAC}_climate_zone1")
+    assert hass.states.get(climate).attributes["temperature"] == 20.0
+    await hass.services.async_call(
+        DOMAIN, "set_override", {"zone": 1, "temperature": 22.5}, blocking=True)
+    await hass.async_block_till_done()
+    # the fake's T_ setpoint still reads 20.0; the hold (Func/Der) says 22.5
+    assert hass.states.get(climate).attributes["temperature"] == 22.5
+
+    # holiday takes precedence over a hold: back to the boiler's setpoint read
+    await hass.services.async_call(
+        DOMAIN, "set_holiday", {"until": (datetime.now(timezone.utc)
+                                          + timedelta(days=1)).isoformat()},
+        blocking=True)
+    await hass.async_block_till_done()
+    assert hass.states.get(climate).attributes["temperature"] == 20.0
+
+
+async def test_writes_refresh_again_as_the_boiler_settles(hass, fake_gateway):
+    entry, gw = await _setup(hass)
+    before = gw.reads
+    await hass.services.async_call(DOMAIN, "clear_holiday", {}, blocking=True)
+    await hass.async_block_till_done()
+    assert gw.reads == before + 1          # holiday now re-reads the setpoint too
+    for delay in (5, 15):                  # const.SETTLE_REFRESH_DELAYS
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=delay + 1))
+        await hass.async_block_till_done()
+    assert gw.reads == before + 3
+
+
+async def test_unload_cancels_pending_refreshes(hass, fake_gateway):
+    entry, gw = await _setup(hass)
+    await hass.services.async_call(
+        DOMAIN, "clear_override", {"zone": 1}, blocking=True)
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    reads = gw.reads
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
+    await hass.async_block_till_done()
+    assert gw.reads == reads               # nothing polls a disconnected gateway
 
 
 async def test_unload_disconnects(hass, fake_gateway):
